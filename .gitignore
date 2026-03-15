@@ -48,6 +48,9 @@ out/
 coverage/
 .nyc_output/
 
+# === Kiro ===
+.kiro/
+
 # === Project-specific ===
 # 옵시디언 플러그인 빌드 출력 (main.js는 빌드 산출물)
 main.js
