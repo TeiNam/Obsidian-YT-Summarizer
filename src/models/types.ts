@@ -8,6 +8,7 @@ import { Language } from "../i18n";
 /**
  * 플러그인 설정 인터페이스
  * API 마이그레이션 후 API Key 하나로 단순화
+ * 구독 피드 관련 필드 추가
  */
 export interface PluginSettings {
   /** UI 표시 언어 */
@@ -16,6 +17,15 @@ export interface PluginSettings {
   saveFolderPath: string;
   /** YouTube Summary API 인증 키 */
   apiKey: string;
+  /** YouTube Data API v3 인증 키 */
+  youtubeDataApiKey: string;
+
+  /** 모니터링 대상 채널 목록 */
+  monitoredChannels: MonitoredChannel[];
+  /** 구독 영상 요약 저장 폴더 경로 */
+  subscriptionSaveFolderPath: string;
+  /** 채널당 표시할 최신 영상 개수 (기본값: 3, 범위: 1~10) */
+  videosPerChannel: number;
 }
 
 /**
@@ -113,4 +123,73 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   language: "en",
   saveFolderPath: "YouTube Summaries",
   apiKey: "",
+  youtubeDataApiKey: "",
+  monitoredChannels: [],
+  subscriptionSaveFolderPath: "YouTube Subscriptions",
+  videosPerChannel: 3,
 };
+
+// ============================================================
+// 구독 피드 관련 타입 및 인터페이스
+// ============================================================
+
+/**
+ * 모니터링 대상 채널 정보
+ * 사용자가 체크박스로 선택한 구독 채널
+ */
+export interface MonitoredChannel {
+  /** YouTube 채널 ID (예: "UCxxxx") */
+  channelId: string;
+  /** 채널 이름 */
+  channelTitle: string;
+  /** 채널 썸네일 URL */
+  thumbnailUrl: string;
+  /** 채널별 저장 폴더 경로 (미설정 시 공통 폴더 사용) */
+  saveFolderPath?: string;
+}
+
+/**
+ * YouTube Data API channels.list 응답에서 추출한 채널 정보
+ */
+export interface SubscriptionChannel {
+  channelId: string;
+  title: string;
+  thumbnailUrl: string;
+  description: string;
+}
+
+/**
+ * 채널의 최근 영상 정보
+ */
+export interface VideoItem {
+  videoId: string;
+  title: string;
+  channelId: string;
+  channelTitle: string;
+  /** ISO 8601 형식의 업로드 날짜 */
+  publishedAt: string;
+  thumbnailUrl: string;
+}
+
+/**
+ * playlistItems.list 응답
+ * 페이지네이션 지원
+ */
+export interface PlaylistItemsResponse {
+  items: VideoItem[];
+  nextPageToken: string | null;
+}
+
+/**
+ * 채널별 신규 영상 그룹
+ */
+export interface ChannelVideos {
+  channelId: string;
+  channelTitle: string;
+  videos: VideoItem[];
+}
+
+/**
+ * 피드 뷰에서 영상별 요약 상태를 추적하기 위한 타입
+ */
+export type VideoSummaryStatus = "idle" | "summarizing" | "completed" | "error";

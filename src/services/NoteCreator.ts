@@ -138,6 +138,7 @@ export class NoteCreator {
   /**
    * 노트를 생성하고 Vault에 저장하는 메서드
    * 저장 폴더 자동 생성, 마크다운 변환, 파일 생성을 순차적으로 수행
+   * 파일명에 오늘 날짜(YYYY-MM-DD) 접두사를 포함
    * @param content - 노트 생성용 콘텐츠 객체
    * @returns 생성된 TFile 객체
    */
@@ -145,8 +146,66 @@ export class NoteCreator {
     // 저장 폴더 존재 확인 및 자동 생성
     await this.ensureFolderExists();
 
-    // 파일 경로 결정 (중복 처리 포함)
-    const filePath = await this.resolveFilePath(content.videoTitle);
+    // 오늘 날짜 접두사로 파일 경로 결정
+    const today = new Date().toISOString();
+    const filePath = this.resolveFilePathWithDatePrefix(content.videoTitle, today);
+
+    // 마크다운 콘텐츠 생성
+    const markdown = this.generateMarkdown(content);
+
+    // Vault API로 파일 생성
+    const file = await this.app.vault.create(filePath, markdown);
+
+    return file;
+  }
+
+  /**
+   * 날짜 접두사가 포함된 파일 경로를 결정하는 메서드
+   * ISO 8601 형식의 업로드 날짜를 YY-MM-DD 형식으로 변환하여 파일명 접두사로 사용
+   * 구독 피드 영상 요약 노트에 사용
+   * @param title - 영상 제목 (파일명으로 사용)
+   * @param uploadDate - ISO 8601 형식의 업로드 날짜 (예: "2024-06-15T10:30:00Z")
+   * @returns 날짜 접두사가 포함된 파일 경로 문자열 (예: "폴더/24-06-15 영상제목.md")
+   */
+  resolveFilePathWithDatePrefix(title: string, uploadDate: string): string {
+    // ISO 8601 날짜에서 YY-MM-DD 부분 추출 (연도 뒤 2자리)
+    const datePrefix = uploadDate.slice(2, 10);
+    // 특수 문자 제거
+    const safeName = sanitizeFileName(title);
+    return `${this.savePath}/${datePrefix} ${safeName}.md`;
+  }
+
+  /**
+   * 날짜 접두사 파일명으로 노트를 생성하고 Vault에 저장하는 메서드
+   * 구독 피드 영상 요약 시 사용하며, 별도의 저장 폴더 경로를 지정할 수 있음
+   * @param content - 노트 생성용 콘텐츠 객체
+   * @param uploadDate - ISO 8601 형식의 업로드 날짜
+   * @param saveFolderPath - 노트 저장 폴더 경로 (구독 전용 폴더)
+   * @returns 생성된 TFile 객체
+   */
+  async createNoteWithDatePrefix(
+    content: NoteContent,
+    uploadDate: string,
+    saveFolderPath: string
+  ): Promise<TFile> {
+    // 저장 폴더 존재 확인 및 자동 생성 (지정된 폴더 경로 사용)
+    const folder = this.app.vault.getAbstractFileByPath(saveFolderPath);
+    if (!(folder instanceof TFolder)) {
+      const parts = saveFolderPath.split("/").filter((p) => p.length > 0);
+      let currentPath = "";
+      for (const part of parts) {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        const existing = this.app.vault.getAbstractFileByPath(currentPath);
+        if (!existing) {
+          await this.app.vault.createFolder(currentPath);
+        }
+      }
+    }
+
+    // 날짜 접두사 파일 경로 결정 (YY-MM-DD 형식, 공백 구분)
+    const datePrefix = uploadDate.slice(2, 10);
+    const safeName = sanitizeFileName(content.videoTitle);
+    const filePath = `${saveFolderPath}/${datePrefix} ${safeName}.md`;
 
     // 마크다운 콘텐츠 생성
     const markdown = this.generateMarkdown(content);

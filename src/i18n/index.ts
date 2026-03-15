@@ -49,6 +49,48 @@ export interface Translations {
   errorApiTimeout: string;
   errorMissingApiKey: string;
   noticeSummaryComplete: string;
+
+  // 구독 피드 설정
+  youtubeDataApiKeyLabel: string;
+  youtubeDataApiKeyDesc: string;
+  addChannelLabel: string;
+  addChannelDesc: string;
+  addChannelButton: string;
+  addingChannel: string;
+  removeChannelButton: string;
+  subscriptionChannelsLabel: string;
+  subscriptionSaveFolderLabel: string;
+  subscriptionSaveFolderDesc: string;
+  subscriptionSectionHeader: string;
+  errorChannelNotFound: string;
+
+  // 사이드바 탭
+  tabUrlSummary: string;
+  tabSubscriptionFeed: string;
+
+  // 피드 뷰
+  feedRefreshButton: string;
+  feedLoading: string;
+  feedEmpty: string;
+  feedNoChannels: string;
+  feedSummarizeButton: string;
+  feedSummarizing: string;
+  feedSummarized: string;
+  feedSummaryError: string;
+
+  // 구독 피드 오류 메시지
+  errorInvalidYoutubeDataApiKey: string;
+  errorNetworkConnection: string;
+  errorFetchSubscriptions: string;
+
+  // 채널별 저장 폴더
+  channelSaveFolderLabel: string;
+  channelSaveFolderDesc: string;
+  channelSaveFolderDefault: string;
+
+  // 채널당 영상 개수 설정
+  videosPerChannelLabel: string;
+  videosPerChannelDesc: string;
 }
 
 /** 영어 번역 */
@@ -59,8 +101,8 @@ const en: Translations = {
   languageLabel: "Language",
   languageDesc: "Select the display language for the plugin UI",
 
-  apiKeyLabel: "API Key",
-  apiKeyDesc: "API Key for YouTube Summary API authentication",
+  apiKeyLabel: "Summary Server API Key",
+  apiKeyDesc: "API Key for YouTube Summary API server authentication",
 
   saveFolderLabel: "Save Folder",
   saveFolderDesc: "Folder path where summary notes will be saved",
@@ -86,6 +128,48 @@ const en: Translations = {
   errorApiTimeout: "Summary processing timed out. Please try again",
   errorMissingApiKey: "Please enter your API Key in settings",
   noticeSummaryComplete: "Summary complete",
+
+  // 구독 피드 설정
+  youtubeDataApiKeyLabel: "YouTube Data API Key",
+  youtubeDataApiKeyDesc: "Google Cloud Console → Create Project → Enable YouTube Data API v3 → Credentials → Create API Key",
+  addChannelLabel: "Add Channel",
+  addChannelDesc: "Enter a YouTube channel handle (e.g. @sosumonkey) or channel ID (e.g. UCxxxx)",
+  addChannelButton: "Add",
+  addingChannel: "Adding...",
+  removeChannelButton: "Remove",
+  subscriptionChannelsLabel: "Monitored Channels",
+  subscriptionSaveFolderLabel: "Subscription Save Folder",
+  subscriptionSaveFolderDesc: "Folder path where subscription summary notes will be saved",
+  subscriptionSectionHeader: "YouTube Subscription Feed",
+  errorChannelNotFound: "Channel not found. Please check the channel handle or ID",
+
+  // 사이드바 탭
+  tabUrlSummary: "URL Summary",
+  tabSubscriptionFeed: "Subscription Feed",
+
+  // 피드 뷰
+  feedRefreshButton: "Refresh",
+  feedLoading: "Loading feed...",
+  feedEmpty: "No new videos found",
+  feedNoChannels: "Please select channels to monitor in settings",
+  feedSummarizeButton: "Summarize",
+  feedSummarizing: "Summarizing...",
+  feedSummarized: "Summary complete",
+  feedSummaryError: "Summary failed",
+
+  // 구독 피드 오류 메시지
+  errorInvalidYoutubeDataApiKey: "YouTube Data API Key is invalid. Please check your settings",
+  errorNetworkConnection: "Network connection error. Please check your network",
+  errorFetchSubscriptions: "Failed to fetch subscriptions. Please try again",
+
+  // 채널별 저장 폴더
+  channelSaveFolderLabel: "Channel Save Folder",
+  channelSaveFolderDesc: "Select a folder for this channel's summary notes (leave default to use common folder)",
+  channelSaveFolderDefault: "Use default folder",
+
+  // 채널당 영상 개수 설정
+  videosPerChannelLabel: "Videos per channel",
+  videosPerChannelDesc: "Number of latest videos to show per channel (1-10)",
 };
 
 /** 한국어 번역 */
@@ -96,8 +180,8 @@ const ko: Translations = {
   languageLabel: "언어 (Language)",
   languageDesc: "플러그인 UI 표시 언어를 선택합니다",
 
-  apiKeyLabel: "API Key",
-  apiKeyDesc: "YouTube Summary API 인증을 위한 API Key입니다",
+  apiKeyLabel: "요약 서버 API Key",
+  apiKeyDesc: "YouTube Summary API 서버 인증을 위한 API Key입니다",
 
   saveFolderLabel: "노트 저장 폴더",
   saveFolderDesc: "요약 노트가 저장될 폴더 경로입니다",
@@ -123,6 +207,48 @@ const ko: Translations = {
   errorApiTimeout: "요약 처리 시간이 초과되었습니다. 다시 시도해주세요",
   errorMissingApiKey: "설정에서 API Key를 입력해주세요",
   noticeSummaryComplete: "요약이 완료되었습니다",
+
+  // 구독 피드 설정
+  youtubeDataApiKeyLabel: "YouTube Data API Key",
+  youtubeDataApiKeyDesc: "Google Cloud Console → 프로젝트 생성 → YouTube Data API v3 사용 설정 → 사용자 인증 정보 → API 키 만들기",
+  addChannelLabel: "채널 추가",
+  addChannelDesc: "YouTube 채널 핸들 (예: @sosumonkey) 또는 채널 ID (예: UCxxxx)를 입력하세요",
+  addChannelButton: "추가",
+  addingChannel: "추가 중...",
+  removeChannelButton: "삭제",
+  subscriptionChannelsLabel: "모니터링 채널 목록",
+  subscriptionSaveFolderLabel: "구독 영상 요약 저장 폴더",
+  subscriptionSaveFolderDesc: "구독 영상 요약 노트가 저장될 폴더 경로입니다",
+  subscriptionSectionHeader: "YouTube 구독 피드",
+  errorChannelNotFound: "채널을 찾을 수 없습니다. 채널 핸들 또는 ID를 확인해주세요",
+
+  // 사이드바 탭
+  tabUrlSummary: "URL 요약",
+  tabSubscriptionFeed: "구독 피드",
+
+  // 피드 뷰
+  feedRefreshButton: "새로고침",
+  feedLoading: "피드를 불러오는 중...",
+  feedEmpty: "새로운 영상이 없습니다",
+  feedNoChannels: "모니터링할 채널을 설정에서 선택해주세요",
+  feedSummarizeButton: "요약하기",
+  feedSummarizing: "요약 중...",
+  feedSummarized: "요약 완료",
+  feedSummaryError: "요약 실패",
+
+  // 구독 피드 오류 메시지
+  errorInvalidYoutubeDataApiKey: "YouTube Data API Key가 유효하지 않습니다. 설정을 확인해주세요",
+  errorNetworkConnection: "네트워크 연결을 확인해주세요",
+  errorFetchSubscriptions: "구독 목록을 가져오는데 실패했습니다. 다시 시도해주세요",
+
+  // 채널별 저장 폴더
+  channelSaveFolderLabel: "채널별 저장 폴더",
+  channelSaveFolderDesc: "이 채널의 요약 노트 저장 폴더를 선택하세요 (기본값이면 공통 폴더 사용)",
+  channelSaveFolderDefault: "기본 폴더 사용",
+
+  // 채널당 영상 개수 설정
+  videosPerChannelLabel: "채널당 영상 개수",
+  videosPerChannelDesc: "채널당 표시할 최신 영상 개수 (1~10)",
 };
 
 /** 번역 맵 */

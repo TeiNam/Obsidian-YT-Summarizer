@@ -126,6 +126,110 @@ describe("YouTubeSummarizerPlugin", () => {
     });
   });
 
+  describe("loadSettings - 구독 관련 기본값 병합", () => {
+    it("저장된 데이터에 구독 관련 필드가 없으면 DEFAULT_SETTINGS의 기본값이 적용된다", async () => {
+      // 구독 관련 필드가 전혀 없는 저장 데이터
+      vi.spyOn(plugin, "loadData").mockResolvedValue({ apiKey: "some-key" });
+      await plugin.loadSettings();
+
+      // 구독 관련 기본값 검증
+      expect(plugin.settings.youtubeDataApiKey).toBe(DEFAULT_SETTINGS.youtubeDataApiKey);
+      expect(plugin.settings.monitoredChannels).toEqual(DEFAULT_SETTINGS.monitoredChannels);
+      expect(plugin.settings.subscriptionSaveFolderPath).toBe(DEFAULT_SETTINGS.subscriptionSaveFolderPath);
+      expect(plugin.settings.videosPerChannel).toBe(DEFAULT_SETTINGS.videosPerChannel);
+    });
+
+    it("저장된 구독 설정이 있으면 올바르게 병합된다", async () => {
+      const savedData = {
+        apiKey: "saved-api-key",
+        youtubeDataApiKey: "saved-data-api-key",
+        monitoredChannels: [
+          { channelId: "UC123", channelTitle: "Test Channel", thumbnailUrl: "https://example.com/thumb.jpg" },
+        ],
+        subscriptionSaveFolderPath: "My Subscriptions",
+        videosPerChannel: 5,
+      };
+      vi.spyOn(plugin, "loadData").mockResolvedValue(savedData);
+      await plugin.loadSettings();
+
+      // 저장된 구독 설정이 반영되는지 확인
+      expect(plugin.settings.youtubeDataApiKey).toBe("saved-data-api-key");
+      expect(plugin.settings.monitoredChannels).toEqual(savedData.monitoredChannels);
+      expect(plugin.settings.subscriptionSaveFolderPath).toBe("My Subscriptions");
+      expect(plugin.settings.videosPerChannel).toBe(5);
+      // 기존 필드도 유지
+      expect(plugin.settings.apiKey).toBe("saved-api-key");
+      expect(plugin.settings.saveFolderPath).toBe(DEFAULT_SETTINGS.saveFolderPath);
+    });
+
+    it("기존 저장 데이터에 lastCheckedAt이 있어도 정상 동작한다", async () => {
+      // 하위 호환성: 기존 lastCheckedAt 필드가 있는 저장 데이터
+      const savedData = {
+        apiKey: "old-key",
+        lastCheckedAt: { UC123: "2024-01-01T00:00:00Z" },
+      };
+      vi.spyOn(plugin, "loadData").mockResolvedValue(savedData);
+      await plugin.loadSettings();
+
+      // videosPerChannel은 기본값이 적용되어야 함
+      expect(plugin.settings.videosPerChannel).toBe(DEFAULT_SETTINGS.videosPerChannel);
+      expect(plugin.settings.apiKey).toBe("old-key");
+    });
+  });
+
+  describe("fetchChannelInfo", () => {
+    it("fetchChannelInfo 메서드가 함수로 존재한다", () => {
+      expect(typeof plugin.fetchChannelInfo).toBe("function");
+    });
+  });
+
+  describe("onload - registerView 콜백 구독 의존성 주입", () => {
+    it("registerView 콜백이 SidebarView를 반환하고 setDependencies를 3개 인자로 호출한다", async () => {
+      vi.spyOn(plugin, "loadData").mockResolvedValue(null);
+
+      // SidebarView.prototype.setDependencies를 미리 스파이
+      const { SidebarView: ActualSidebarView } = await import("./views/SidebarView");
+      const setDepsSpy = vi.fn();
+      vi.spyOn(ActualSidebarView.prototype, "setDependencies").mockImplementation(setDepsSpy);
+
+      // registerView 호출 시 콜백을 캡처
+      let capturedViewCreator: ((leaf: any) => any) | null = null;
+      vi.spyOn(plugin, "registerView").mockImplementation((_type: string, creator: any) => {
+        capturedViewCreator = creator;
+      });
+      vi.spyOn(plugin, "addRibbonIcon").mockReturnValue({} as HTMLElement);
+      vi.spyOn(plugin, "addSettingTab").mockImplementation(() => {});
+
+      await plugin.onload();
+
+      // registerView 콜백이 캡처되었는지 확인
+      expect(capturedViewCreator).not.toBeNull();
+
+      // 모킹된 leaf로 콜백 실행
+      const mockLeaf = { app: plugin.app } as any;
+      const view = capturedViewCreator!(mockLeaf);
+
+      // SidebarView 인스턴스인지 확인
+      expect(view).toBeInstanceOf(ActualSidebarView);
+
+      // setDependencies가 3개 인자로 호출되었는지 확인
+      expect(setDepsSpy).toHaveBeenCalledTimes(1);
+      const callArgs = setDepsSpy.mock.calls[0];
+      expect(callArgs).toHaveLength(3);
+
+      // 첫 번째 인자: serviceFactory (함수)
+      expect(typeof callArgs[0]).toBe("function");
+
+      // 두 번째 인자: getSettings (함수)
+      expect(typeof callArgs[1]).toBe("function");
+
+      // 세 번째 인자: subscriptionDeps (subscriptionManager, app 포함 객체)
+      expect(callArgs[2]).toBeDefined();
+      expect(callArgs[2]).toHaveProperty("subscriptionManager");
+      expect(callArgs[2]).toHaveProperty("app");
+    });
+  });
+
   describe("onunload", () => {
     it("오류 없이 실행된다", async () => {
       await expect(plugin.onunload()).resolves.not.toThrow();

@@ -5,12 +5,21 @@
 // 새 진행 단계 매핑 및 summarize() 시그니처 변경 검증
 // ============================================================
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { WorkspaceLeaf } from "obsidian";
 import { SidebarView, VIEW_TYPE_YOUTUBE_SUMMARIZER } from "./SidebarView";
 import { SummarizerService } from "../services/SummarizerService";
 import { PluginSettings, DEFAULT_SETTINGS, SummaryStage } from "../models/types";
 import { t } from "../i18n";
+
+// FeedView 모킹 - 실제 FeedView 인스턴스 생성 방지
+vi.mock("./FeedView", () => ({
+  FeedView: vi.fn().mockImplementation(() => ({
+    render: vi.fn(),
+    loadFeed: vi.fn(),
+    destroy: vi.fn(),
+  })),
+}));
 
 const tr = t("en");
 
@@ -45,6 +54,8 @@ describe("SidebarView", () => {
   let leaf: WorkspaceLeaf;
 
   beforeEach(() => {
+    // 테스트 간 격리를 위해 마지막 활성 탭 상태를 URL 탭으로 리셋
+    (SidebarView as any).lastActiveTab = "url";
     leaf = new WorkspaceLeaf();
     view = new SidebarView(leaf);
     view.contentEl = document.createElement("div");
@@ -327,6 +338,129 @@ describe("SidebarView", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(buttonDuringProcess).toBe(true);
+    });
+  });
+
+  // ============================================================
+  // 탭 전환 UI 테스트
+  // Requirements: 7.1, 7.2, 7.3
+  // ============================================================
+  describe("탭 전환 UI", () => {
+    beforeEach(async () => {
+      // 마지막 활성 탭을 URL로 리셋하여 기본 상태에서 시작
+      (SidebarView as any).lastActiveTab = "url";
+      leaf = new WorkspaceLeaf();
+      view = new SidebarView(leaf);
+      view.contentEl = document.createElement("div");
+      patchContentEl(view.contentEl);
+      await view.onOpen();
+    });
+
+    it("탭 컨테이너와 URL 요약 탭, 구독 피드 탭 버튼이 렌더링된다", () => {
+      // 탭 컨테이너 존재 확인
+      const tabContainer = view.contentEl.querySelector(".youtube-summarizer-tabs");
+      expect(tabContainer).not.toBeNull();
+
+      // URL 요약 탭 버튼 확인
+      const urlTab = view.contentEl.querySelector('[data-tab="url"]') as HTMLElement;
+      expect(urlTab).not.toBeNull();
+      expect(urlTab.textContent).toBe(tr.tabUrlSummary);
+      expect(urlTab.getAttribute("role")).toBe("tab");
+
+      // 구독 피드 탭 버튼 확인
+      const feedTab = view.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+      expect(feedTab).not.toBeNull();
+      expect(feedTab.textContent).toBe(tr.tabSubscriptionFeed);
+      expect(feedTab.getAttribute("role")).toBe("tab");
+    });
+
+    it("기본 탭이 URL 요약 탭이다", () => {
+      // URL 탭 버튼이 active 클래스를 가짐
+      const urlTab = view.contentEl.querySelector('[data-tab="url"]') as HTMLElement;
+      expect(urlTab.classList.contains("active")).toBe(true);
+
+      // 피드 탭 버튼은 active가 아님
+      const feedTab = view.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+      expect(feedTab.classList.contains("active")).toBe(false);
+
+      // URL 탭 콘텐츠(입력창)가 표시됨
+      const input = view.contentEl.querySelector("input") as HTMLInputElement;
+      expect(input).not.toBeNull();
+    });
+
+    it("구독 피드 탭 클릭 시 피드 콘텐츠로 전환된다", () => {
+      const feedTab = view.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+      feedTab.click();
+
+      // URL 입력창이 사라짐 (피드 콘텐츠로 전환)
+      const input = view.contentEl.querySelector(".youtube-summarizer-url-input");
+      expect(input).toBeNull();
+
+      // 탭 콘텐츠 영역이 존재
+      const tabContent = view.contentEl.querySelector(".youtube-summarizer-tab-content");
+      expect(tabContent).not.toBeNull();
+    });
+
+    it("URL 요약 탭 클릭 시 URL 입력 UI로 전환된다", () => {
+      // 먼저 피드 탭으로 전환
+      const feedTab = view.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+      feedTab.click();
+
+      // 다시 URL 탭으로 전환
+      const urlTab = view.contentEl.querySelector('[data-tab="url"]') as HTMLElement;
+      urlTab.click();
+
+      // URL 입력창이 다시 표시됨
+      const input = view.contentEl.querySelector("input") as HTMLInputElement;
+      expect(input).not.toBeNull();
+      expect(input.placeholder).toBe(tr.urlPlaceholder);
+
+      // 요약 버튼도 다시 표시됨
+      const button = view.contentEl.querySelector("button") as HTMLButtonElement;
+      expect(button).not.toBeNull();
+      expect(button.textContent).toBe(tr.summarizeButton);
+    });
+
+    it("탭 전환 시 active 클래스가 올바르게 토글된다", () => {
+      const urlTab = view.contentEl.querySelector('[data-tab="url"]') as HTMLElement;
+      const feedTab = view.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+
+      // 초기 상태: URL 탭이 active
+      expect(urlTab.classList.contains("active")).toBe(true);
+      expect(feedTab.classList.contains("active")).toBe(false);
+
+      // 피드 탭 클릭: 피드 탭이 active, URL 탭은 비활성
+      feedTab.click();
+      expect(urlTab.classList.contains("active")).toBe(false);
+      expect(feedTab.classList.contains("active")).toBe(true);
+
+      // 다시 URL 탭 클릭: URL 탭이 active, 피드 탭은 비활성
+      urlTab.click();
+      expect(urlTab.classList.contains("active")).toBe(true);
+      expect(feedTab.classList.contains("active")).toBe(false);
+    });
+
+    it("마지막 선택 탭 상태가 뷰 재오픈 시 복원된다", async () => {
+      // 피드 탭으로 전환하여 lastActiveTab을 "feed"로 설정
+      const feedTab = view.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+      feedTab.click();
+
+      // 새로운 뷰 인스턴스 생성 (뷰 재오픈 시뮬레이션)
+      const newLeaf = new WorkspaceLeaf();
+      const newView = new SidebarView(newLeaf);
+      newView.contentEl = document.createElement("div");
+      patchContentEl(newView.contentEl);
+      await newView.onOpen();
+
+      // 피드 탭이 active 상태로 복원됨
+      const newFeedTab = newView.contentEl.querySelector('[data-tab="feed"]') as HTMLElement;
+      const newUrlTab = newView.contentEl.querySelector('[data-tab="url"]') as HTMLElement;
+      expect(newFeedTab.classList.contains("active")).toBe(true);
+      expect(newUrlTab.classList.contains("active")).toBe(false);
+
+      // URL 입력창이 없음 (피드 탭이 활성 상태이므로)
+      const input = newView.contentEl.querySelector(".youtube-summarizer-url-input");
+      expect(input).toBeNull();
     });
   });
 });

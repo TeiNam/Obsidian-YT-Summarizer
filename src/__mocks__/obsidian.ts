@@ -70,6 +70,14 @@ export class Vault {
   getAbstractFileByPath(_path: string): TAbstractFile | null {
     return null;
   }
+
+  getAllLoadedFiles(): TAbstractFile[] {
+    return [];
+  }
+
+  getAllFolders(): TFolder[] {
+    return [];
+  }
 }
 
 /**
@@ -260,18 +268,40 @@ export class PluginSettingTab {
 }
 
 /**
+ * AbstractInputSuggest 모킹 - 자동완성 입력 기본 클래스
+ */
+export class AbstractInputSuggest<T> {
+  app: App;
+  inputEl: HTMLInputElement;
+
+  constructor(app: App, inputEl: HTMLInputElement) {
+    this.app = app;
+    this.inputEl = inputEl;
+  }
+
+  getSuggestions(_inputStr: string): T[] { return []; }
+  renderSuggestion(_item: T, _el: HTMLElement): void {}
+  selectSuggestion(_item: T): void {}
+  close(): void {}
+}
+
+/**
  * Setting 모킹 - 옵시디언 설정 UI 빌더
  * 체이닝 패턴을 지원하는 설정 항목 생성기
  */
 export class Setting {
   private settingEl: HTMLElement;
+  descEl: HTMLElement;
 
   constructor(containerEl: HTMLElement) {
     if (typeof document !== "undefined") {
       this.settingEl = document.createElement("div");
+      this.descEl = document.createElement("div");
+      this.settingEl.appendChild(this.descEl);
       containerEl.appendChild(this.settingEl);
     } else {
       this.settingEl = {} as HTMLElement;
+      this.descEl = {} as HTMLElement;
     }
   }
 
@@ -327,6 +357,27 @@ export class Setting {
       _onClick: null as (() => void) | null,
     };
     cb(button);
+    return this;
+  }
+  addToggle(cb: (toggle: any) => any): this {
+    const toggle = {
+      setValue: () => toggle,
+      onChange: () => toggle,
+    };
+    cb(toggle);
+    return this;
+  }
+  addSearch(cb: (search: any) => any): this {
+    const search = {
+      setPlaceholder: () => search,
+      setValue: () => search,
+      onChange: () => search,
+      inputEl:
+        typeof document !== "undefined"
+          ? document.createElement("input")
+          : {},
+    };
+    cb(search);
     return this;
   }
 }

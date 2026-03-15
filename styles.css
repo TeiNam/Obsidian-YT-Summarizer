@@ -162,3 +162,158 @@
   font-size: 0.75em;
   color: var(--text-muted);
 }
+
+/* ============================================================
+   구독 피드 관련 스타일
+   탭 전환 UI, 채널별 영상 목록, 요약 상태, 모바일 반응형
+   ============================================================ */
+
+/* 탭 전환 UI */
+.youtube-summarizer-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 8px;
+}
+
+.youtube-summarizer-tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.youtube-summarizer-tab:hover {
+  color: var(--text-normal);
+}
+
+.youtube-summarizer-tab.active {
+  color: var(--interactive-accent);
+  border-bottom-color: var(--interactive-accent);
+}
+
+.youtube-summarizer-tab-content {
+  padding: 4px 0;
+}
+
+/* 피드 뷰 */
+.youtube-feed-refresh-btn {
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  margin-bottom: 8px;
+}
+
+.youtube-feed-refresh-btn:hover {
+  opacity: 0.9;
+}
+
+.youtube-feed-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.youtube-feed-empty,
+.youtube-feed-loading {
+  text-align: center;
+  padding: 24px 8px;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+/* 채널 그룹 */
+.youtube-feed-channel-group {
+  margin-bottom: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.youtube-feed-channel-title {
+  font-size: 0.95em;
+  margin: 0 0 6px 0;
+  color: var(--text-normal);
+}
+
+/* 영상 항목 */
+.youtube-feed-video-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.youtube-feed-video-item:last-child {
+  border-bottom: none;
+}
+
+.youtube-feed-video-title {
+  font-size: 0.9em;
+  color: var(--text-normal);
+}
+
+.youtube-feed-video-meta {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+/* 요약 버튼 및 상태 */
+.youtube-feed-summarize-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 0.8em;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: opacity 0.15s ease;
+}
+
+.youtube-feed-summarize-btn:hover {
+  opacity: 0.9;
+}
+
+.youtube-feed-summarize-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.youtube-feed-status {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .youtube-summarizer-tab {
+    font-size: 0.8em;
+    padding: 10px 12px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .youtube-feed-video-item {
+    padding: 10px 0;
+  }
+
+  .youtube-feed-summarize-btn {
+    min-height: 44px;
+    padding: 8px 16px;
+  }
+
+  .youtube-feed-refresh-btn {
+    min-height: 44px;
+  }
+}

@@ -6,7 +6,7 @@
 // ============================================================
 
 import { Plugin, WorkspaceLeaf, addIcon } from "obsidian";
-import { PluginSettings, DEFAULT_SETTINGS } from "./models/types";
+import { PluginSettings, DEFAULT_SETTINGS, SubscriptionChannel } from "./models/types";
 import {
   SidebarView,
   VIEW_TYPE_YOUTUBE_SUMMARIZER,
@@ -15,6 +15,8 @@ import { SettingsTab } from "./settings/SettingsTab";
 import { YouTubeSummaryApiClient } from "./services/YouTubeSummaryApiClient";
 import { NoteCreator } from "./services/NoteCreator";
 import { SummarizerService } from "./services/SummarizerService";
+import { YouTubeDataApiClient } from "./services/YouTubeDataApiClient";
+import { SubscriptionManager } from "./services/SubscriptionManager";
 
 /**
  * 유튜브 요약 플러그인 메인 클래스
@@ -35,16 +37,24 @@ export default class YouTubeSummarizerPlugin extends Plugin {
         const view = new SidebarView(leaf);
 
         // 서비스 팩토리: 매 요약 시 최신 설정으로 서비스 인스턴스 생성
-        const serviceFactory = () => {
+        // saveFolderPath가 전달되면 해당 경로 사용 (채널별 폴더), 아니면 기본 폴더
+        const serviceFactory = (saveFolderPath?: string) => {
           const apiClient = new YouTubeSummaryApiClient(this.settings.apiKey);
           const noteCreator = new NoteCreator(
             this.app,
-            this.settings.saveFolderPath
+            saveFolderPath ?? this.settings.saveFolderPath
           );
           return new SummarizerService(apiClient, noteCreator);
         };
 
-        view.setDependencies(serviceFactory, () => this.settings);
+        // 구독 관련 의존성 생성 (매번 최신 설정으로 생성)
+        const dataApiClient = new YouTubeDataApiClient(this.settings.youtubeDataApiKey);
+        const subscriptionManager = new SubscriptionManager(dataApiClient, this.settings);
+
+        view.setDependencies(serviceFactory, () => this.settings, {
+          subscriptionManager,
+          app: this.app,
+        });
         return view;
       }
     );
@@ -59,6 +69,16 @@ export default class YouTubeSummarizerPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {}
+
+  /**
+   * 채널 ID로 채널 정보를 조회하는 메서드
+   * 최신 youtubeDataApiKey로 YouTubeDataApiClient를 생성하여 호출
+   * SettingsTab의 YouTubeSummarizerPluginInterface를 만족시킴
+   */
+  async fetchChannelInfo(channelId: string): Promise<SubscriptionChannel> {
+    const apiClient = new YouTubeDataApiClient(this.settings.youtubeDataApiKey);
+    return apiClient.fetchChannelInfo(channelId);
+  }
 
   async loadSettings(): Promise<void> {
     this.settings = Object.assign(
