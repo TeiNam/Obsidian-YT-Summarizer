@@ -1,0 +1,164 @@
+/* ============================================================
+   YouTube Summarizer 플러그인 스타일
+   사이드바 뷰 및 설정 탭 UI 스타일 정의
+   ============================================================ */
+
+/* 사이드바 컨테이너 */
+.youtube-summarizer-container {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 제목 */
+.youtube-summarizer-title {
+  margin: 0 0 4px 0;
+  font-size: 1.1em;
+}
+
+/* 입력 영역 컨테이너 */
+.youtube-summarizer-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* URL 입력창 */
+.youtube-summarizer-url-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.9em;
+}
+
+.youtube-summarizer-url-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.youtube-summarizer-url-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* 요약 버튼 */
+.youtube-summarizer-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.youtube-summarizer-button:hover {
+  opacity: 0.9;
+}
+
+.youtube-summarizer-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 상태 메시지 영역 */
+.youtube-summarizer-status {
+  font-size: 0.85em;
+  min-height: 1.4em;
+  padding: 4px 0;
+  transition: color 0.15s ease;
+}
+
+.youtube-summarizer-status.loading {
+  color: var(--text-muted);
+}
+
+.youtube-summarizer-status.error {
+  color: var(--text-error);
+}
+
+.youtube-summarizer-status.success {
+  color: var(--text-success);
+}
+
+/* 프롬프트 편집 모달 */
+.youtube-summarizer-prompt-modal {
+  padding: 16px;
+}
+
+.youtube-summarizer-prompt-modal h2 {
+  margin: 0 0 12px 0;
+}
+
+.youtube-summarizer-prompt-textarea {
+  width: 100%;
+  min-height: 500px;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.youtube-summarizer-prompt-textarea:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.youtube-summarizer-prompt-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 스크립트 직접 입력 영역 */
+.youtube-summarizer-script-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.youtube-summarizer-script-label {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.youtube-summarizer-script-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.85em;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.youtube-summarizer-script-textarea:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.youtube-summarizer-script-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.youtube-summarizer-script-hint {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}

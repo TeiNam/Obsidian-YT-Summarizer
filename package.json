@@ -1,0 +1,33 @@
+{
+  "name": "obsidian-youtube-summarizer",
+  "version": "1.0.0",
+  "description": "옵시디언 플러그인 - 유튜브 영상 AI 요약 노트 생성",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "obsidian",
+    "youtube",
+    "summarizer",
+    "ai",
+    "bedrock"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "esbuild": "^0.20.0",
+    "fast-check": "^3.15.0",
+    "jsdom": "^28.1.0",
+    "obsidian": "^1.5.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.500.0"
+  }
+}

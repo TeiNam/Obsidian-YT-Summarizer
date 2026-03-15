@@ -1,0 +1,53 @@
+# Generated .gitignore
+# Stacks: TypeScript, Node.js, Obsidian Plugin
+# Date: 2026-03-15
+
+# === Global: OS ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# === Global: IDE & Editors ===
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# === Global: Security ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.secrets
+
+# === TypeScript / Node.js ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+dist/
+build/
+out/
+
+*.tsbuildinfo
+coverage/
+.nyc_output/
+
+# === Project-specific ===
+# 옵시디언 플러그인 빌드 출력 (main.js는 빌드 산출물)
+main.js
