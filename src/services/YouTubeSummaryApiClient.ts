@@ -105,10 +105,16 @@ export class YouTubeSummaryApiClient {
    * POST /summarize — 요약 작업 생성
    * @param url - 유튜브 영상 URL
    * @param targetLanguage - 번역 대상 언어 코드
+   * @param transcript - 수동 입력 스크립트/자막 (선택사항)
    * @returns 작업 ID와 상태를 포함한 응답
    * @throws ApiError - HTTP 오류 시 (401, 422 등)
    */
-  async submitSummarize(url: string, targetLanguage: string): Promise<SummarizeApiResponse> {
+  async submitSummarize(url: string, targetLanguage: string, transcript?: string): Promise<SummarizeApiResponse> {
+    const body: Record<string, string> = { url, target_language: targetLanguage };
+    if (transcript && transcript.trim().length > 0) {
+      body.transcript = transcript.trim();
+    }
+
     const response = await this.requestFn({
       url: `${BASE_URL}/summarize`,
       method: "POST",
@@ -116,7 +122,7 @@ export class YouTubeSummaryApiClient {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
       },
-      body: JSON.stringify({ url, target_language: targetLanguage }),
+      body: JSON.stringify(body),
     });
 
     if (response.status === 202) {

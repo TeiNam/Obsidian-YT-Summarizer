@@ -44,6 +44,8 @@ export class SidebarView extends ItemView {
 
   /** 유튜브 URL 입력 필드 */
   private urlInput!: HTMLInputElement;
+  /** 스크립트/자막 직접 입력 영역 */
+  private scriptTextarea!: HTMLTextAreaElement;
   /** 요약 실행 버튼 */
   private summarizeButton!: HTMLButtonElement;
   /** 상태 메시지 표시 영역 */
@@ -202,7 +204,9 @@ export class SidebarView extends ItemView {
     }
 
     // 탭 콘텐츠 영역 비우기
-    this.tabContentEl.innerHTML = "";
+    while (this.tabContentEl.firstChild) {
+      this.tabContentEl.removeChild(this.tabContentEl.firstChild);
+    }
 
     // 해당 탭의 콘텐츠 렌더링
     if (tab === "url") {
@@ -220,30 +224,50 @@ export class SidebarView extends ItemView {
     const tr = this.tr;
 
     // 입력 영역 컨테이너
-    const inputContainer = document.createElement("div");
-    inputContainer.className = "youtube-summarizer-input-container";
-    container.appendChild(inputContainer);
+    const inputContainer = container.createDiv({
+      cls: "youtube-summarizer-input-container",
+    });
 
     // 유튜브 링크 입력창
-    this.urlInput = document.createElement("input");
-    this.urlInput.type = "text";
-    this.urlInput.placeholder = tr.urlPlaceholder;
-    this.urlInput.className = "youtube-summarizer-url-input";
-    inputContainer.appendChild(this.urlInput);
+    this.urlInput = inputContainer.createEl("input", {
+      type: "text",
+      placeholder: tr.urlPlaceholder,
+      cls: "youtube-summarizer-url-input",
+    });
+
+    // 스크립트/자막 직접 입력 영역
+    const scriptContainer = inputContainer.createDiv({
+      cls: "youtube-summarizer-script-container",
+    });
+
+    scriptContainer.createEl("label", {
+      text: tr.scriptLabel,
+      cls: "youtube-summarizer-script-label",
+    });
+
+    this.scriptTextarea = scriptContainer.createEl("textarea", {
+      placeholder: tr.scriptPlaceholder,
+      cls: "youtube-summarizer-script-textarea",
+    });
+
+    scriptContainer.createDiv({
+      text: tr.scriptHint,
+      cls: "youtube-summarizer-script-hint",
+    });
 
     // 요약 버튼
-    this.summarizeButton = document.createElement("button");
-    this.summarizeButton.textContent = tr.summarizeButton;
-    this.summarizeButton.className = "youtube-summarizer-button";
+    this.summarizeButton = inputContainer.createEl("button", {
+      text: tr.summarizeButton,
+      cls: "youtube-summarizer-button",
+    });
     this.summarizeButton.addEventListener("click", () => {
       this.handleSummarize();
     });
-    inputContainer.appendChild(this.summarizeButton);
 
     // 상태 메시지 영역
-    this.statusMessage = document.createElement("div");
-    this.statusMessage.className = "youtube-summarizer-status";
-    container.appendChild(this.statusMessage);
+    this.statusMessage = container.createDiv({
+      cls: "youtube-summarizer-status",
+    });
   }
 
   /**
@@ -253,10 +277,10 @@ export class SidebarView extends ItemView {
   private renderFeedTab(container: HTMLElement): void {
     if (!this.subscriptionDeps || !this.createSummarizerService || !this.getSettings) {
       // 의존성이 없으면 안내 메시지 표시
-      const msg = document.createElement("div");
-      msg.className = "youtube-feed-empty";
-      msg.textContent = this.tr.feedNoChannels;
-      container.appendChild(msg);
+      container.createDiv({
+        text: this.tr.feedNoChannels,
+        cls: "youtube-feed-empty",
+      });
       return;
     }
 
@@ -309,13 +333,17 @@ export class SidebarView extends ItemView {
 
       const summarizerService = this.createSummarizerService();
 
-      // 새 API 시그니처: (videoUrl, targetLanguage, onProgress)
+      // 스크립트 입력값 가져오기
+      const manualTranscript = this.scriptTextarea?.value?.trim() || undefined;
+
+      // API 시그니처: (videoUrl, targetLanguage, onProgress, manualTranscript?)
       await summarizerService.summarize(
         url,
         settings.language,
         (stage: string) => {
           this.setLoading(true, this.resolveStageText(stage));
-        }
+        },
+        manualTranscript
       );
 
       this.showSuccess(this.resolveStageText(SummaryStage.COMPLETE));
@@ -378,6 +406,9 @@ export class SidebarView extends ItemView {
   resetForm(): void {
     const tr = this.tr;
     this.urlInput.value = "";
+    if (this.scriptTextarea) {
+      this.scriptTextarea.value = "";
+    }
     this.summarizeButton.disabled = false;
     this.summarizeButton.textContent = tr.summarizeButton;
   }

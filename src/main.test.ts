@@ -231,8 +231,8 @@ describe("YouTubeSummarizerPlugin", () => {
   });
 
   describe("onunload", () => {
-    it("오류 없이 실행된다", async () => {
-      await expect(plugin.onunload()).resolves.not.toThrow();
+    it("오류 없이 실행된다", () => {
+      expect(() => plugin.onunload()).not.toThrow();
     });
   });
 });

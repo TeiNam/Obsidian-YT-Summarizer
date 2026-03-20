@@ -1,5 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
+import builtins from "builtin-modules";
 
 const prod = process.argv[2] === "production";
 
@@ -20,13 +21,15 @@ const context = await esbuild.context({
     "@lezer/common",
     "@lezer/highlight",
     "@lezer/lr",
+    ...builtins,
   ],
   format: "cjs",
-  target: "es2018",
+  target: "chrome106",
   logLevel: "info",
   sourcemap: prod ? false : "inline",
   treeShaking: true,
   outfile: "main.js",
+  minify: prod,
 });
 
 if (prod) {

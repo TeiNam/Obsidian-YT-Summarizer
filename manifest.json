@@ -3,8 +3,8 @@
   "name": "YouTube Summarizer",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "유튜브 영상 링크를 입력하면 AI(AWS Bedrock)로 요약 노트를 자동 생성하는 플러그인",
-  "author": "",
-  "isDesktopOnly": true,
-  "fundingUrl": ""
+  "description": "Summarize YouTube videos with AI and save as structured markdown notes.",
+  "author": "teinam",
+  "authorUrl": "https://github.com/teinam",
+  "isDesktopOnly": false
 }

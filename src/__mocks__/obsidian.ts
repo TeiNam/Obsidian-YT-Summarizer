@@ -259,6 +259,39 @@ export class PluginSettingTab {
       (this.containerEl as any).empty = function () {
         this.innerHTML = "";
       };
+      // 옵시디언의 createEl() 메서드 모킹
+      (this.containerEl as any).createEl = function (tag: string, opts?: any) {
+        const el = document.createElement(tag);
+        if (opts?.text) el.textContent = opts.text;
+        if (opts?.cls) el.className = opts.cls;
+        if (opts?.type) (el as any).type = opts.type;
+        if (opts?.placeholder) (el as any).placeholder = opts.placeholder;
+        (el as any).addClass = function (cls: string) { this.classList.add(cls); };
+        (el as any).createEl = (this as any).createEl?.bind(el) ?? function () { return document.createElement("div"); };
+        (el as any).createDiv = function (o?: any) {
+          const d = document.createElement("div");
+          if (o?.text) d.textContent = o.text;
+          if (o?.cls) d.className = o.cls;
+          (d as any).createEl = (el as any).createEl;
+          (d as any).createDiv = (d as any).createDiv;
+          (d as any).addClass = function (c: string) { this.classList.add(c); };
+          this.appendChild(d);
+          return d;
+        };
+        this.appendChild(el);
+        return el;
+      };
+      // 옵시디언의 createDiv() 메서드 모킹
+      (this.containerEl as any).createDiv = function (opts?: any) {
+        const div = document.createElement("div");
+        if (opts?.text) div.textContent = opts.text;
+        if (opts?.cls) div.className = opts.cls;
+        (div as any).createEl = (this as any).createEl?.bind(div);
+        (div as any).createDiv = (this as any).createDiv?.bind(div);
+        (div as any).addClass = function (c: string) { this.classList.add(c); };
+        this.appendChild(div);
+        return div;
+      };
     } else {
       this.containerEl = {} as HTMLElement;
     }
@@ -365,6 +398,16 @@ export class Setting {
       onChange: () => toggle,
     };
     cb(toggle);
+    return this;
+  }
+  addSlider(cb: (slider: any) => any): this {
+    const slider = {
+      setLimits: () => slider,
+      setValue: () => slider,
+      setDynamicTooltip: () => slider,
+      onChange: () => slider,
+    };
+    cb(slider);
     return this;
   }
   addSearch(cb: (search: any) => any): this {

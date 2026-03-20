@@ -91,6 +91,11 @@ export interface Translations {
   // 채널당 영상 개수 설정
   videosPerChannelLabel: string;
   videosPerChannelDesc: string;
+
+  // 스크립트 직접 입력
+  scriptLabel: string;
+  scriptPlaceholder: string;
+  scriptHint: string;
 }
 
 /** 영어 번역 */
@@ -170,6 +175,11 @@ const en: Translations = {
   // 채널당 영상 개수 설정
   videosPerChannelLabel: "Videos per channel",
   videosPerChannelDesc: "Number of latest videos to show per channel (1-10)",
+
+  // 스크립트 직접 입력
+  scriptLabel: "Script / Transcript",
+  scriptPlaceholder: "Paste the video script or transcript here (optional)",
+  scriptHint: "If provided, this text will be used for summarization instead of auto-extraction.",
 };
 
 /** 한국어 번역 */
@@ -249,6 +259,11 @@ const ko: Translations = {
   // 채널당 영상 개수 설정
   videosPerChannelLabel: "채널당 영상 개수",
   videosPerChannelDesc: "채널당 표시할 최신 영상 개수 (1~10)",
+
+  // 스크립트 직접 입력
+  scriptLabel: "스크립트 / 자막",
+  scriptPlaceholder: "영상의 스크립트 또는 자막을 여기에 붙여넣으세요 (선택사항)",
+  scriptHint: "입력하면 자동 추출 대신 이 텍스트를 사용하여 요약합니다.",
 };
 
 /** 번역 맵 */

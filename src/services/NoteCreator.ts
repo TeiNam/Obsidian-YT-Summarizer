@@ -38,13 +38,35 @@ export class NoteCreator {
   }
 
   /**
+   * 시스템 로컬 시간 기준 YYYY-MM-DD 형식의 날짜 문자열을 반환
+   */
+  private getLocalDateString(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * 시스템 로컬 시간 기준 YY-MM-DD 형식의 날짜 접두사를 반환
+   */
+  private getLocalDatePrefix(): string {
+    const now = new Date();
+    const year = String(now.getFullYear()).slice(2);
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
    * NoteContent 객체를 마크다운 문자열로 변환하는 순수 함수
    * YAML 프론트매터, 영상 임베딩, 요약 내용, 핵심 인사이트를 포함
    * @param content - 노트 생성용 콘텐츠 객체
    * @returns 마크다운 형식의 문자열
    */
   generateMarkdown(content: NoteContent): string {
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD 형식
+    const today = this.getLocalDateString(); // 시스템 로컬 시간 기준 YYYY-MM-DD
 
     // YAML 프론트매터 생성
     const frontmatter = [
@@ -146,9 +168,10 @@ export class NoteCreator {
     // 저장 폴더 존재 확인 및 자동 생성
     await this.ensureFolderExists();
 
-    // 오늘 날짜 접두사로 파일 경로 결정
-    const today = new Date().toISOString();
-    const filePath = this.resolveFilePathWithDatePrefix(content.videoTitle, today);
+    // 시스템 로컬 시간 기준 날짜 접두사로 파일 경로 결정
+    const datePrefix = this.getLocalDatePrefix();
+    const safeName = sanitizeFileName(content.videoTitle);
+    const filePath = `${this.savePath}/${datePrefix} ${safeName}.md`;
 
     // 마크다운 콘텐츠 생성
     const markdown = this.generateMarkdown(content);

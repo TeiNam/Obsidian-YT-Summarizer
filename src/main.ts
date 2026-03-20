@@ -68,7 +68,10 @@ export default class YouTubeSummarizerPlugin extends Plugin {
     this.addSettingTab(new SettingsTab(this.app, this));
   }
 
-  async onunload(): Promise<void> {}
+  onunload(): void {
+    // Obsidian이 registerView, addRibbonIcon, addSettingTab 등은 자동 정리
+    // 추가 정리가 필요한 리소스가 있으면 여기에 추가
+  }
 
   /**
    * 채널 ID로 채널 정보를 조회하는 메서드

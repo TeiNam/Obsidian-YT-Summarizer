@@ -4,7 +4,7 @@
 // 구독 피드 설정: 수동 채널 추가 방식 (채널 ID 입력 → channels.list API 조회 → 추가)
 // ============================================================
 
-import { App, Notice, PluginSettingTab, Setting, TFolder, TAbstractFile } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import { PluginSettings, SubscriptionChannel, MonitoredChannel } from "../models/types";
 import { t, Language } from "../i18n";
 import { FolderSuggest } from "./FolderSuggest";
@@ -67,13 +67,9 @@ export class SettingsTab extends PluginSettingTab {
     const tr = t(lang);
 
     // 앱 이름 및 설명 헤더
-    const h2 = document.createElement("h2");
-    h2.textContent = tr.settingsHeader;
-    containerEl.appendChild(h2);
-    const descEl = document.createElement("p");
-    descEl.textContent = tr.settingsDescription;
-    descEl.className = "setting-item-description";
-    containerEl.appendChild(descEl);
+    containerEl.createEl("h2", { text: tr.settingsHeader });
+    const descEl = containerEl.createEl("p", { text: tr.settingsDescription });
+    descEl.addClass("setting-item-description");
 
     // 언어 선택 드롭다운
     new Setting(containerEl)
@@ -139,9 +135,7 @@ export class SettingsTab extends PluginSettingTab {
     const hasApiKey = this.plugin.settings.youtubeDataApiKey.trim().length > 0;
 
     // 구독 피드 섹션 헤더
-    const sectionHeader = document.createElement("h3");
-    sectionHeader.textContent = tr.subscriptionSectionHeader;
-    containerEl.appendChild(sectionHeader);
+    containerEl.createEl("h3", { text: tr.subscriptionSectionHeader });
 
     // YouTube Data API Key 입력 필드 (눈 아이콘 토글로 마스킹/표시 전환)
     const apiKeySetting = new Setting(containerEl)
@@ -243,9 +237,7 @@ export class SettingsTab extends PluginSettingTab {
     tr: ReturnType<typeof t>
   ): void {
     // 채널 목록 레이블
-    const channelLabel = document.createElement("h4");
-    channelLabel.textContent = tr.subscriptionChannelsLabel;
-    containerEl.appendChild(channelLabel);
+    containerEl.createEl("h4", { text: tr.subscriptionChannelsLabel });
 
     // 각 모니터링 채널에 대해 UI 생성
     for (const channel of this.plugin.settings.monitoredChannels) {

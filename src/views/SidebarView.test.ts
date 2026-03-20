@@ -5,7 +5,7 @@
 // 새 진행 단계 매핑 및 summarize() 시그니처 변경 검증
 // ============================================================
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WorkspaceLeaf } from "obsidian";
 import { SidebarView, VIEW_TYPE_YOUTUBE_SUMMARIZER } from "./SidebarView";
 import { SummarizerService } from "../services/SummarizerService";
@@ -40,8 +40,9 @@ function patchContentEl(el: HTMLElement): void {
     this.appendChild(child);
     return child;
   };
-  (el as any).createDiv = function (opts?: { cls?: string }) {
+  (el as any).createDiv = function (opts?: { cls?: string; text?: string }) {
     const div = document.createElement("div");
+    if (opts?.text) div.textContent = opts.text;
     if (opts?.cls) div.classList.add(opts.cls);
     patchContentEl(div);
     this.appendChild(div);
@@ -94,9 +95,20 @@ describe("SidebarView", () => {
       expect(status).not.toBeNull();
     });
 
-    it("스크립트 textarea가 렌더링되지 않는다", () => {
+    it("스크립트 textarea가 렌더링된다", () => {
       const textarea = view.contentEl.querySelector("textarea");
-      expect(textarea).toBeNull();
+      expect(textarea).not.toBeNull();
+      expect(textarea!.placeholder).toBe(tr.scriptPlaceholder);
+    });
+
+    it("스크립트 라벨과 힌트가 렌더링된다", () => {
+      const label = view.contentEl.querySelector(".youtube-summarizer-script-label");
+      expect(label).not.toBeNull();
+      expect(label!.textContent).toBe(tr.scriptLabel);
+
+      const hint = view.contentEl.querySelector(".youtube-summarizer-script-hint");
+      expect(hint).not.toBeNull();
+      expect(hint!.textContent).toBe(tr.scriptHint);
     });
 
     it("제목이 렌더링된다", () => {
@@ -246,11 +258,12 @@ describe("SidebarView", () => {
       button.click();
       await new Promise((r) => setTimeout(r, 50));
 
-      // 새 시그니처: (videoUrl, targetLanguage, onProgress)
+      // 새 시그니처: (videoUrl, targetLanguage, onProgress, manualTranscript?)
       expect(mockSummarizerService.summarize).toHaveBeenCalledWith(
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         "en",
-        expect.any(Function)
+        expect.any(Function),
+        undefined
       );
     });
 

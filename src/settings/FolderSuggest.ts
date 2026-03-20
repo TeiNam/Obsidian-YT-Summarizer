@@ -3,7 +3,7 @@
 // AbstractInputSuggest를 상속하여 텍스트 입력 + 폴더 목록 자동완성 제공
 // ============================================================
 
-import { App, AbstractInputSuggest, TFolder } from "obsidian";
+import { App, AbstractInputSuggest } from "obsidian";
 
 /**
  * 볼트 내 폴더를 자동완성으로 제안하는 입력 컴포넌트

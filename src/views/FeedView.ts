@@ -62,7 +62,9 @@ export class FeedView {
    * 새로고침 버튼 + 피드 콘텐츠 영역을 생성
    */
   render(): void {
-    this.containerEl.innerHTML = "";
+    while (this.containerEl.firstChild) {
+      this.containerEl.removeChild(this.containerEl.firstChild);
+    }
 
     // 새로고침 버튼
     const refreshBtn = document.createElement("button");
@@ -90,7 +92,9 @@ export class FeedView {
 
     // 모니터링 대상 채널이 없는 경우 안내 메시지 표시
     if (!settings.monitoredChannels || settings.monitoredChannels.length === 0) {
-      this.contentEl.innerHTML = "";
+      while (this.contentEl.firstChild) {
+        this.contentEl.removeChild(this.contentEl.firstChild);
+      }
       const noChannelsMsg = document.createElement("div");
       noChannelsMsg.className = "youtube-feed-empty";
       noChannelsMsg.textContent = this.tr.feedNoChannels;
@@ -99,7 +103,9 @@ export class FeedView {
     }
 
     // 로딩 상태 표시
-    this.contentEl.innerHTML = "";
+    while (this.contentEl.firstChild) {
+      this.contentEl.removeChild(this.contentEl.firstChild);
+    }
     const loadingMsg = document.createElement("div");
     loadingMsg.className = "youtube-feed-loading";
     loadingMsg.textContent = this.tr.feedLoading;
@@ -108,7 +114,9 @@ export class FeedView {
     try {
       const channelVideos = await this.deps.subscriptionManager.fetchNewVideos();
 
-      this.contentEl.innerHTML = "";
+      while (this.contentEl.firstChild) {
+        this.contentEl.removeChild(this.contentEl.firstChild);
+      }
 
       // 신규 영상이 없는 경우 빈 피드 메시지 표시
       if (channelVideos.length === 0) {
@@ -124,7 +132,9 @@ export class FeedView {
     } catch {
       // 피드 로드 실패 시 오류 메시지 표시
       if (this.contentEl) {
-        this.contentEl.innerHTML = "";
+        while (this.contentEl.firstChild) {
+          this.contentEl.removeChild(this.contentEl.firstChild);
+        }
         const errorMsg = document.createElement("div");
         errorMsg.className = "youtube-feed-empty";
         errorMsg.textContent = this.tr.feedSummaryError;
@@ -319,7 +329,9 @@ export class FeedView {
    */
   destroy(): void {
     this.videoStatusMap.clear();
-    this.containerEl.innerHTML = "";
+    while (this.containerEl.firstChild) {
+      this.containerEl.removeChild(this.containerEl.firstChild);
+    }
     this.contentEl = null;
   }
 }

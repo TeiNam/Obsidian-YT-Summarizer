@@ -86,7 +86,8 @@ describe("SummarizerService", () => {
       expect(result).toHaveProperty("path");
       expect(apiClient.submitSummarize).toHaveBeenCalledWith(
         "https://www.youtube.com/watch?v=abc123",
-        "ko"
+        "ko",
+        undefined
       );
       expect(apiClient.getTaskStatus).toHaveBeenCalledWith("task-123");
       expect(apiClient.getTaskStatus).toHaveBeenCalledTimes(3);

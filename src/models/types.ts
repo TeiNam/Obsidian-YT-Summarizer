@@ -84,6 +84,8 @@ export type ProgressCallback = (stage: string) => void;
 export interface SummarizeApiRequest {
   url: string;
   target_language: string;
+  /** 수동 입력 스크립트/자막 (제공 시 자동 추출 대신 사용) */
+  transcript?: string;
 }
 
 /** POST /summarize 응답 (202) */
