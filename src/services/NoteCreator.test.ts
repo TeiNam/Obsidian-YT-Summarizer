@@ -143,7 +143,7 @@ describe("NoteCreator.createNote", () => {
     expect(mockApp.vault.createFolder).not.toHaveBeenCalled();
   });
 
-  it("Vault.create가 날짜 접두사 경로와 올바른 콘텐츠로 호출된다", async () => {
+  it("uploadDate 미전달 시 오늘 날짜 접두사 경로와 올바른 콘텐츠로 호출된다", async () => {
     const noteCreator = new NoteCreator(mockApp, "YouTube Summaries");
     await noteCreator.createNote(normalContent);
 
@@ -155,6 +155,23 @@ describe("NoteCreator.createNote", () => {
     expect(content).toContain("# TypeScript 입문 강의");
     expect(content).toContain("![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)");
     expect(content).toContain("## 핵심 인사이트");
+  });
+
+  it("uploadDate 전달 시 업로드 날짜(YY-MM-DD) 접두사로 파일을 생성한다", async () => {
+    const noteCreator = new NoteCreator(mockApp, "YouTube Summaries");
+    await noteCreator.createNote(normalContent, "2024-06-15T10:30:00Z");
+
+    const [filePath] = (mockApp.vault.create as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(filePath).toBe("YouTube Summaries/24-06-15 TypeScript 입문 강의.md");
+  });
+
+  it("uploadDate가 빈 문자열/형식 불일치면 오늘 날짜로 폴백한다", async () => {
+    const noteCreator = new NoteCreator(mockApp, "YouTube Summaries");
+    await noteCreator.createNote(normalContent, "not-a-date");
+
+    const [filePath] = (mockApp.vault.create as ReturnType<typeof vi.fn>).mock.calls[0];
+    // 폴백된 오늘 날짜 접두사 (YY-MM-DD)
+    expect(filePath).toMatch(/^YouTube Summaries\/\d{2}-\d{2}-\d{2} TypeScript 입문 강의\.md$/);
   });
 });
 
@@ -172,98 +189,3 @@ describe("sanitizeFileName", () => {
   });
 });
 
-// ============================================================
-// resolveFilePathWithDatePrefix 테스트
-// 날짜 접두사가 포함된 파일 경로 결정 검증
-// ============================================================
-
-describe("NoteCreator.resolveFilePathWithDatePrefix", () => {
-  it("YY-MM-DD 제목.md 형식의 경로를 반환한다", () => {
-    const mockApp = new App();
-    const noteCreator = new NoteCreator(mockApp, "YouTube Subscriptions");
-
-    const result = noteCreator.resolveFilePathWithDatePrefix(
-      "TypeScript 입문 강의",
-      "2024-06-15T10:30:00Z"
-    );
-
-    expect(result).toBe("YouTube Subscriptions/24-06-15 TypeScript 입문 강의.md");
-  });
-
-  it("특수문자가 포함된 제목에서 특수문자가 제거된다", () => {
-    const mockApp = new App();
-    const noteCreator = new NoteCreator(mockApp, "YouTube Subscriptions");
-
-    const result = noteCreator.resolveFilePathWithDatePrefix(
-      '영상/제목:테스트*"특수"<문자>|제거',
-      "2024-01-20T08:00:00Z"
-    );
-
-    expect(result).toBe("YouTube Subscriptions/24-01-20 영상제목테스트특수문자제거.md");
-  });
-});
-
-// ============================================================
-// createNoteWithDatePrefix 테스트
-// 날짜 접두사 파일명으로 노트 생성 검증
-// ============================================================
-
-describe("NoteCreator.createNoteWithDatePrefix", () => {
-  let mockApp: App;
-
-  beforeEach(() => {
-    mockApp = new App();
-    mockApp.vault.create = vi.fn().mockResolvedValue(
-      { path: "YouTube Subscriptions/24-06-15 TypeScript 입문 강의.md" } as TFile
-    );
-    mockApp.vault.createFolder = vi.fn().mockResolvedValue(undefined);
-    mockApp.vault.getAbstractFileByPath = vi.fn().mockReturnValue(null);
-  });
-
-  it("지정된 폴더에 날짜 접두사 파일명으로 노트를 생성한다", async () => {
-    const noteCreator = new NoteCreator(mockApp, "YouTube Summaries");
-
-    await noteCreator.createNoteWithDatePrefix(
-      normalContent,
-      "2024-06-15T10:30:00Z",
-      "YouTube Subscriptions"
-    );
-
-    expect(mockApp.vault.create).toHaveBeenCalledTimes(1);
-    const [filePath, content] = (mockApp.vault.create as ReturnType<typeof vi.fn>).mock.calls[0];
-
-    // 날짜 접두사가 포함된 파일 경로 (YY-MM-DD 형식, 공백 구분)
-    expect(filePath).toBe("YouTube Subscriptions/24-06-15 TypeScript 입문 강의.md");
-    // 마크다운 콘텐츠가 올바르게 생성됨
-    expect(content).toContain("# TypeScript 입문 강의");
-  });
-
-  it("폴더가 존재하지 않을 때 자동 생성한다", async () => {
-    const noteCreator = new NoteCreator(mockApp, "YouTube Summaries");
-
-    await noteCreator.createNoteWithDatePrefix(
-      normalContent,
-      "2024-06-15T10:30:00Z",
-      "YouTube Subscriptions"
-    );
-
-    expect(mockApp.vault.createFolder).toHaveBeenCalledWith("YouTube Subscriptions");
-  });
-
-  it("폴더가 이미 존재할 때 생성하지 않는다", async () => {
-    const existingFolder = { path: "YouTube Subscriptions" } as TFolder;
-    mockApp.vault.getAbstractFileByPath = vi.fn((p: string) =>
-      p === "YouTube Subscriptions" ? existingFolder : null
-    );
-
-    const noteCreator = new NoteCreator(mockApp, "YouTube Summaries");
-
-    await noteCreator.createNoteWithDatePrefix(
-      normalContent,
-      "2024-06-15T10:30:00Z",
-      "YouTube Subscriptions"
-    );
-
-    expect(mockApp.vault.createFolder).not.toHaveBeenCalled();
-  });
-});

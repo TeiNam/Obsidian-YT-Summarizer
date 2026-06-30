@@ -372,13 +372,16 @@ export class FeedView {
       );
 
       // 채널별 폴더 경로로 SummarizerService 생성하여 요약 실행 (노트 생성 포함)
+      // 노트 파일명 접두사로 쓰도록 원본 영상 업로드 날짜를 전달
       const summarizerService = this.deps.summarizerServiceFactory(saveFolderPath);
       await summarizerService.summarize(
         videoUrl,
         settings.language,
         () => {
           // 진행 상태 콜백 - 상태는 이미 "summarizing"으로 표시 중
-        }
+        },
+        undefined,
+        video.publishedAt
       );
 
       // 상태를 "completed"로 변경

@@ -44,13 +44,15 @@ export class SummarizerService {
    * @param targetLanguage - 번역 대상 언어 코드
    * @param onProgress - 진행 상태 콜백 함수
    * @param manualTranscript - 수동 입력 스크립트/자막 (선택사항)
+   * @param uploadDate - ISO 8601 영상 업로드 날짜 (선택사항, 노트 파일명 접두사용)
    * @returns 생성된 TFile 객체
    */
   async summarize(
     videoUrl: string,
     targetLanguage: string,
     onProgress: ProgressCallback,
-    manualTranscript?: string
+    manualTranscript?: string,
+    uploadDate?: string
   ): Promise<TFile> {
     // 1단계: API 요약 요청 (스크립트가 있으면 함께 전달)
     onProgress(SummaryStage.PENDING);
@@ -83,7 +85,7 @@ export class SummarizerService {
           keyPoints: taskStatus.result.key_points,
         };
 
-        const file = await this.noteCreator.createNote(noteContent);
+        const file = await this.noteCreator.createNote(noteContent, uploadDate);
         onProgress(SummaryStage.COMPLETE);
         return file;
       }
