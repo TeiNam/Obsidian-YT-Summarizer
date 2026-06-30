@@ -13,9 +13,10 @@ import type { NoteCreator } from "./NoteCreator";
 // sleep을 즉시 resolve하도록 모킹
 vi.mock("timers", () => ({}));
 
-// 완료된 API 결과 데이터
+// 완료된 API 결과 데이터 (upload_date는 라이브 등에서 null 가능)
 const completedResult = {
   video_title: "테스트 영상 제목",
+  upload_date: null,
   summary: "AI가 생성한 요약 내용입니다.",
   key_points: ["포인트1", "포인트2", "포인트3"],
   original_language: "ko",
