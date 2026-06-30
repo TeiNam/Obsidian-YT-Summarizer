@@ -107,6 +107,8 @@ export interface TaskStatusResponse {
 /** 완료 시 결과 객체 */
 export interface ApiResult {
   video_title: string;
+  /** 원본 영상 업로드 날짜 (YYYY-MM-DD, 노트 파일명 접두사용) */
+  upload_date?: string;
   original_language: string;
   extraction_method: "subtitle" | "transcribe";
   translated_text: string;

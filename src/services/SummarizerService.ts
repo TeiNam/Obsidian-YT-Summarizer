@@ -85,7 +85,9 @@ export class SummarizerService {
           keyPoints: taskStatus.result.key_points,
         };
 
-        const file = await this.noteCreator.createNote(noteContent, uploadDate);
+        // 업로드 날짜 우선순위: API 응답(upload_date) → 호출 인자(피드 publishedAt) → 오늘(createNote 내부 폴백)
+        const resolvedUploadDate = taskStatus.result.upload_date || uploadDate;
+        const file = await this.noteCreator.createNote(noteContent, resolvedUploadDate);
         onProgress(SummaryStage.COMPLETE);
         return file;
       }

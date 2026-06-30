@@ -120,6 +120,41 @@ describe("SummarizerService", () => {
       expect(noteCall.summary).toBe("AI가 생성한 요약 내용입니다.");
       expect(noteCall.keyPoints).toEqual(["포인트1", "포인트2", "포인트3"]);
     });
+
+    it("API 응답의 upload_date가 createNote에 전달된다", async () => {
+      // 완료 결과에 upload_date 포함하도록 재구성
+      vi.mocked(apiClient.getTaskStatus).mockReset();
+      vi.mocked(apiClient.getTaskStatus).mockResolvedValue({
+        task_id: "task-123",
+        status: "completed",
+        result: { ...completedResult, upload_date: "2026-06-15" },
+        error: null,
+      });
+
+      await service.summarize(
+        "https://www.youtube.com/watch?v=abc123",
+        "ko",
+        onProgress
+      );
+
+      // createNote의 두 번째 인자(uploadDate)로 API upload_date가 전달되어야 한다
+      const uploadDateArg = vi.mocked(noteCreator.createNote).mock.calls[0][1];
+      expect(uploadDateArg).toBe("2026-06-15");
+    });
+
+    it("API 응답에 upload_date가 없으면 호출 인자 uploadDate로 폴백한다", async () => {
+      // completedResult에는 upload_date 없음
+      await service.summarize(
+        "https://www.youtube.com/watch?v=abc123",
+        "ko",
+        onProgress,
+        undefined,
+        "2024-01-20T08:00:00Z"
+      );
+
+      const uploadDateArg = vi.mocked(noteCreator.createNote).mock.calls[0][1];
+      expect(uploadDateArg).toBe("2024-01-20T08:00:00Z");
+    });
   });
 
   describe("실패 플로우", () => {
