@@ -7,8 +7,9 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { App } from "obsidian";
-import { FeedView } from "./FeedView";
+import { FeedView, groupChannelsByGroupName } from "./FeedView";
 import type { FeedViewDependencies } from "./FeedView";
+import type { MonitoredChannel } from "../models/types";
 import type { ChannelVideos, PluginSettings } from "../models/types";
 import { DEFAULT_SETTINGS } from "../models/types";
 import { t } from "../i18n";
@@ -460,6 +461,158 @@ describe("FeedView", () => {
 
       // destroy 후 DOM이 비워졌는지 확인
       expect(containerEl.innerHTML).toBe("");
+    });
+  });
+
+  // ============================================================
+  // 그룹화 헬퍼 (groupChannelsByGroupName)
+  // ============================================================
+  describe("groupChannelsByGroupName", () => {
+    const cv = (channelId: string): ChannelVideos => ({
+      channelId,
+      channelTitle: channelId,
+      videos: [],
+    });
+    const ch = (channelId: string, group?: string): MonitoredChannel => ({
+      channelId,
+      channelTitle: channelId,
+      thumbnailUrl: "",
+      group,
+    });
+
+    it("같은 그룹명의 채널을 한 그룹으로 묶고 등장 순서를 유지한다", () => {
+      const result = groupChannelsByGroupName(
+        [cv("A"), cv("B"), cv("C")],
+        [ch("A", "주식"), ch("B", "스터디"), ch("C", "주식")]
+      );
+      expect(result.map((g) => g.groupName)).toEqual(["주식", "스터디"]);
+      expect(result[0].channels.map((c) => c.channelId)).toEqual(["A", "C"]);
+      expect(result[1].channels.map((c) => c.channelId)).toEqual(["B"]);
+    });
+
+    it("그룹명이 없거나 공백인 채널은 null 그룹으로 묶여 항상 마지막에 온다", () => {
+      const result = groupChannelsByGroupName(
+        [cv("A"), cv("B"), cv("C")],
+        [ch("A"), ch("B", "주식"), ch("C", "   ")]
+      );
+      const last = result[result.length - 1];
+      expect(last.groupName).toBeNull();
+      expect(last.channels.map((c) => c.channelId)).toEqual(["A", "C"]);
+    });
+  });
+
+  // ============================================================
+  // 페이지네이션 ("더 보기")
+  // ============================================================
+  describe("채널당 영상 페이지네이션", () => {
+    const manyVideos: ChannelVideos[] = [
+      {
+        channelId: "UC_test_1",
+        channelTitle: "테스트 채널 1",
+        videos: Array.from({ length: 6 }, (_, i) => ({
+          videoId: `v${i}`,
+          title: `영상 ${i}`,
+          channelId: "UC_test_1",
+          channelTitle: "테스트 채널 1",
+          publishedAt: "2024-06-15T10:30:00Z",
+          thumbnailUrl: "",
+        })),
+      },
+    ];
+
+    function setupManyVideos(): void {
+      deps = createMockDeps({
+        subscriptionManager: {
+          fetchNewVideos: vi.fn().mockResolvedValue(manyVideos),
+          getUploadsPlaylistId: vi.fn(),
+        } as any,
+        getSettings: () => ({
+          ...DEFAULT_SETTINGS,
+          monitoredChannels: [
+            { channelId: "UC_test_1", channelTitle: "테스트 채널 1", thumbnailUrl: "" },
+          ],
+        }),
+      });
+      feedView = new FeedView(containerEl, deps);
+      feedView.render();
+    }
+
+    it("처음에는 3개만 표시하고 '더 보기' 버튼이 나온다", async () => {
+      setupManyVideos();
+      await feedView.loadFeed();
+
+      expect(containerEl.querySelectorAll(".youtube-feed-video-item").length).toBe(3);
+      const moreBtn = containerEl.querySelector(".youtube-feed-show-more-btn");
+      expect(moreBtn).not.toBeNull();
+      expect(moreBtn!.textContent).toContain("3"); // 숨겨진 개수
+    });
+
+    it("'더 보기' 클릭 시 전체 영상이 표시되고 버튼이 사라진다", async () => {
+      setupManyVideos();
+      await feedView.loadFeed();
+
+      (containerEl.querySelector(".youtube-feed-show-more-btn") as HTMLButtonElement).click();
+
+      expect(containerEl.querySelectorAll(".youtube-feed-video-item").length).toBe(6);
+      expect(containerEl.querySelector(".youtube-feed-show-more-btn")).toBeNull();
+    });
+  });
+
+  // ============================================================
+  // 영구 완료 표시 (summarizedVideoIds)
+  // ============================================================
+  describe("영구 완료 표시", () => {
+    it("summarizedVideoIds에 있는 영상은 처음부터 완료 상태로 표시된다", async () => {
+      deps = createMockDeps({
+        subscriptionManager: {
+          fetchNewVideos: vi.fn().mockResolvedValue(mockChannelVideos),
+          getUploadsPlaylistId: vi.fn(),
+        } as any,
+        getSettings: () => ({
+          ...DEFAULT_SETTINGS,
+          summarizedVideoIds: ["video_1"],
+          monitoredChannels: [
+            { channelId: "UC_test_1", channelTitle: "테스트 채널 1", thumbnailUrl: "" },
+          ],
+        }),
+      });
+      feedView = new FeedView(containerEl, deps);
+      feedView.render();
+      await feedView.loadFeed();
+
+      // 요약 버튼은 없고 완료 상태가 표시되어야 한다
+      expect(containerEl.querySelector(".youtube-feed-summarize-btn")).toBeNull();
+      const statusEl = containerEl.querySelector(".youtube-feed-status");
+      expect(statusEl).not.toBeNull();
+      expect(statusEl!.textContent).toBe(tr.feedSummarized);
+    });
+
+    it("요약 완료 시 markSummarized 콜백이 호출된다", async () => {
+      const markSummarized = vi.fn().mockResolvedValue(undefined);
+      deps = createMockDeps({
+        subscriptionManager: {
+          fetchNewVideos: vi.fn().mockResolvedValue(mockChannelVideos),
+          getUploadsPlaylistId: vi.fn(),
+        } as any,
+        summarizerServiceFactory: vi.fn(() => ({
+          summarize: vi.fn().mockResolvedValue({ path: "test.md" }),
+        })) as any,
+        getSettings: () => ({
+          ...DEFAULT_SETTINGS,
+          monitoredChannels: [
+            { channelId: "UC_test_1", channelTitle: "테스트 채널 1", thumbnailUrl: "" },
+          ],
+        }),
+        markSummarized,
+      });
+      feedView = new FeedView(containerEl, deps);
+      feedView.render();
+      await feedView.loadFeed();
+
+      (containerEl.querySelector(".youtube-feed-summarize-btn") as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(markSummarized).toHaveBeenCalledWith("video_1");
     });
   });
 });

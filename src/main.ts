@@ -54,6 +54,7 @@ export default class YouTubeSummarizerPlugin extends Plugin {
         view.setDependencies(serviceFactory, () => this.settings, {
           subscriptionManager,
           app: this.app,
+          markSummarized: (videoId: string) => this.markVideoSummarized(videoId),
         });
         return view;
       }
@@ -81,6 +82,21 @@ export default class YouTubeSummarizerPlugin extends Plugin {
   async fetchChannelInfo(channelId: string): Promise<SubscriptionChannel> {
     const apiClient = new YouTubeDataApiClient(this.settings.youtubeDataApiKey);
     return apiClient.fetchChannelInfo(channelId);
+  }
+
+  /**
+   * 영상 요약 완료를 설정에 영구 저장
+   * 피드에서 "요약함" 표시를 뷰 재오픈 후에도 유지하기 위해 사용
+   * @param videoId - 요약 완료한 영상 ID
+   */
+  async markVideoSummarized(videoId: string): Promise<void> {
+    if (this.settings.summarizedVideoIds.includes(videoId)) return;
+    // 불변 업데이트로 새 배열 생성
+    this.settings = {
+      ...this.settings,
+      summarizedVideoIds: [...this.settings.summarizedVideoIds, videoId],
+    };
+    await this.saveSettings();
   }
 
   async loadSettings(): Promise<void> {

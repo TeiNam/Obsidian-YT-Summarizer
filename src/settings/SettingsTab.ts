@@ -241,9 +241,26 @@ export class SettingsTab extends PluginSettingTab {
 
     // 각 모니터링 채널에 대해 UI 생성
     for (const channel of this.plugin.settings.monitoredChannels) {
-      // 채널명 + 삭제 버튼
+      // 채널명 + 그룹 입력 + 삭제 버튼
       new Setting(containerEl)
         .setName(channel.channelTitle)
+        .setDesc(tr.channelGroupDesc)
+        .addText((text) => {
+          text
+            .setPlaceholder(tr.channelGroupLabel)
+            .setValue(channel.group ?? "")
+            .onChange(async (value: string) => {
+              const target = this.plugin.settings.monitoredChannels.find(
+                (ch) => ch.channelId === channel.channelId
+              );
+              if (target) {
+                // 빈 문자열/공백이면 그룹 미설정으로 처리
+                const trimmed = value.trim();
+                target.group = trimmed.length > 0 ? trimmed : undefined;
+                await this.plugin.saveSettings();
+              }
+            });
+        })
         .addButton((button) => {
           button
             .setButtonText(tr.removeChannelButton)

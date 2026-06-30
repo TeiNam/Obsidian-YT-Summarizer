@@ -342,15 +342,38 @@ describe("SettingsTab", () => {
 
     it("채널별 저장 폴더 텍스트 입력 변경 시 saveFolderPath가 업데이트된다", async () => {
       settingsTab.display();
-      // 텍스트 입력 순서: API Key(0) + 저장폴더(1) + YouTube Data API Key(2) + 채널 ID 입력(3) + 채널별 저장폴더(4) + 구독 저장폴더(5)
-      expect(capturedTextCallbacks.length).toBe(6);
-      await capturedTextCallbacks[4]("Custom Channel Folder");
+      // 텍스트 입력 순서: API Key(0) + 저장폴더(1) + YouTube Data API Key(2) + 채널 ID 입력(3) + 채널 그룹(4) + 채널별 저장폴더(5) + 구독 저장폴더(6)
+      expect(capturedTextCallbacks.length).toBe(7);
+      await capturedTextCallbacks[5]("Custom Channel Folder");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
         (ch) => ch.channelId === "UC_channel_1"
       );
       expect(updatedChannel?.saveFolderPath).toBe("Custom Channel Folder");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
+    });
+
+    it("채널 그룹 텍스트 입력 변경 시 group이 업데이트된다", async () => {
+      settingsTab.display();
+      // 채널 그룹 입력은 인덱스 4
+      await capturedTextCallbacks[4]("주식");
+
+      const updatedChannel = mockPlugin.settings.monitoredChannels.find(
+        (ch) => ch.channelId === "UC_channel_1"
+      );
+      expect(updatedChannel?.group).toBe("주식");
+      expect(mockPlugin.saveSettings).toHaveBeenCalled();
+    });
+
+    it("채널 그룹을 공백으로 비우면 group이 undefined가 된다", async () => {
+      mockPlugin.settings.monitoredChannels[0].group = "주식";
+      settingsTab.display();
+      await capturedTextCallbacks[4]("   ");
+
+      const updatedChannel = mockPlugin.settings.monitoredChannels.find(
+        (ch) => ch.channelId === "UC_channel_1"
+      );
+      expect(updatedChannel?.group).toBeUndefined();
     });
   });
 
@@ -364,9 +387,9 @@ describe("SettingsTab", () => {
       settingsTab = new SettingsTab(app, mockPlugin);
     });
 
-    it("기본값이 3이다", () => {
-      expect(DEFAULT_SETTINGS.videosPerChannel).toBe(3);
-      expect(mockPlugin.settings.videosPerChannel).toBe(3);
+    it("기본값이 6이다", () => {
+      expect(DEFAULT_SETTINGS.videosPerChannel).toBe(6);
+      expect(mockPlugin.settings.videosPerChannel).toBe(6);
     });
 
     it("YouTube Data API Key가 있으면 videosPerChannel 슬라이더가 렌더링된다", () => {

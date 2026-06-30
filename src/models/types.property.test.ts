@@ -26,6 +26,19 @@ const monitoredChannelArbitrary: fc.Arbitrary<MonitoredChannel> = fc.record({
 });
 
 /**
+ * 그룹명을 포함한 MonitoredChannel 생성기
+ * group 필드 라운드트립 검증용
+ */
+const monitoredChannelWithGroupArbitrary: fc.Arbitrary<MonitoredChannel> = fc.record(
+  {
+    channelId: fc.string({ minLength: 1, maxLength: 30 }),
+    channelTitle: fc.string({ minLength: 1, maxLength: 100 }),
+    thumbnailUrl: fc.webUrl(),
+    group: fc.string({ minLength: 1, maxLength: 30 }),
+  },
+);
+
+/**
  * 완전한 PluginSettings 객체 생성기
  * 기존 필드 + 구독 피드 관련 신규 필드 포함
  */
@@ -34,9 +47,13 @@ const pluginSettingsArbitrary: fc.Arbitrary<PluginSettings> = fc.record({
   saveFolderPath: fc.string({ minLength: 0, maxLength: 200 }),
   apiKey: fc.string({ minLength: 0, maxLength: 100 }),
   youtubeDataApiKey: fc.string({ minLength: 0, maxLength: 100 }),
-  monitoredChannels: fc.array(monitoredChannelArbitrary, { minLength: 0, maxLength: 20 }),
+  monitoredChannels: fc.array(
+    fc.oneof(monitoredChannelArbitrary, monitoredChannelWithGroupArbitrary),
+    { minLength: 0, maxLength: 20 }
+  ),
   subscriptionSaveFolderPath: fc.string({ minLength: 0, maxLength: 200 }),
   videosPerChannel: fc.integer({ min: 1, max: 10 }),
+  summarizedVideoIds: fc.array(fc.string({ minLength: 1, maxLength: 20 }), { maxLength: 50 }),
 });
 
 describe("Feature: youtube-subscription-feed, Property 1: 설정 라운드트립", () => {
@@ -88,6 +105,7 @@ describe("Feature: youtube-subscription-feed, Property 1: 설정 라운드트립
         monitoredChannels: fc.array(monitoredChannelArbitrary, { minLength: 0, maxLength: 20 }),
         subscriptionSaveFolderPath: fc.string({ minLength: 0, maxLength: 200 }),
         videosPerChannel: fc.integer({ min: 1, max: 10 }),
+        summarizedVideoIds: fc.array(fc.string({ minLength: 1, maxLength: 20 }), { maxLength: 50 }),
       },
       { requiredKeys: [] } // 모든 필드가 선택적
     );

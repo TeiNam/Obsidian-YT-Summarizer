@@ -96,6 +96,14 @@ export interface Translations {
   scriptLabel: string;
   scriptPlaceholder: string;
   scriptHint: string;
+
+  // 채널 그룹
+  channelGroupLabel: string;
+  channelGroupDesc: string;
+  feedUngrouped: string;
+
+  // 피드 페이지네이션
+  feedShowMore: string;
 }
 
 /** 영어 번역 */
@@ -180,6 +188,14 @@ const en: Translations = {
   scriptLabel: "Script / Transcript",
   scriptPlaceholder: "Paste the video script or transcript here (optional)",
   scriptHint: "If provided, this text will be used for summarization instead of auto-extraction.",
+
+  // 채널 그룹
+  channelGroupLabel: "Group",
+  channelGroupDesc: "Group this channel under a name (e.g. Stocks, Study). Leave empty for no group.",
+  feedUngrouped: "Ungrouped",
+
+  // 피드 페이지네이션
+  feedShowMore: "Show more",
 };
 
 /** 한국어 번역 */
@@ -264,6 +280,14 @@ const ko: Translations = {
   scriptLabel: "스크립트 / 자막",
   scriptPlaceholder: "영상의 스크립트 또는 자막을 여기에 붙여넣으세요 (선택사항)",
   scriptHint: "입력하면 자동 추출 대신 이 텍스트를 사용하여 요약합니다.",
+
+  // 채널 그룹
+  channelGroupLabel: "그룹",
+  channelGroupDesc: "이 채널을 그룹명으로 묶습니다 (예: 주식, 스터디). 비우면 그룹 없음.",
+  feedUngrouped: "그룹 없음",
+
+  // 피드 페이지네이션
+  feedShowMore: "더 보기",
 };
 
 /** 번역 맵 */

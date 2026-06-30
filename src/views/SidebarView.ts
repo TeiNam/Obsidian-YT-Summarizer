@@ -29,6 +29,8 @@ export interface SubscriptionDependencies {
   subscriptionManager: SubscriptionManager;
   /** 옵시디언 App 인스턴스 */
   app: App;
+  /** 영상 요약 완료를 영구 저장하는 콜백 (FeedView로 전달) */
+  markSummarized?: (videoId: string) => Promise<void>;
 }
 
 /**
@@ -235,12 +237,22 @@ export class SidebarView extends ItemView {
       cls: "youtube-summarizer-url-input",
     });
 
-    // 스크립트/자막 직접 입력 영역
-    const scriptContainer = inputContainer.createDiv({
+    // 요약 버튼 (URL 바로 아래에 배치하여 주 동선을 단순화)
+    this.summarizeButton = inputContainer.createEl("button", {
+      text: tr.summarizeButton,
+      cls: "youtube-summarizer-button",
+    });
+    this.summarizeButton.addEventListener("click", () => {
+      this.handleSummarize();
+    });
+
+    // 스크립트/자막 직접 입력 영역 - 잘 안 쓰는 기능이라 기본 접힘(native <details>)
+    const scriptContainer = inputContainer.createEl("details", {
       cls: "youtube-summarizer-script-container",
     });
 
-    scriptContainer.createEl("label", {
+    // summary가 곧 접기/펼치기 토글이자 라벨 역할
+    scriptContainer.createEl("summary", {
       text: tr.scriptLabel,
       cls: "youtube-summarizer-script-label",
     });
@@ -253,15 +265,6 @@ export class SidebarView extends ItemView {
     scriptContainer.createDiv({
       text: tr.scriptHint,
       cls: "youtube-summarizer-script-hint",
-    });
-
-    // 요약 버튼
-    this.summarizeButton = inputContainer.createEl("button", {
-      text: tr.summarizeButton,
-      cls: "youtube-summarizer-button",
-    });
-    this.summarizeButton.addEventListener("click", () => {
-      this.handleSummarize();
     });
 
     // 상태 메시지 영역
@@ -290,6 +293,7 @@ export class SidebarView extends ItemView {
       summarizerServiceFactory: this.createSummarizerService,
       getSettings: this.getSettings,
       app: this.subscriptionDeps.app,
+      markSummarized: this.subscriptionDeps.markSummarized,
     });
 
     this.feedView.render();

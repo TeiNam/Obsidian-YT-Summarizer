@@ -192,10 +192,10 @@ describe("SubscriptionManager", () => {
       );
     });
 
-    // 테스트 6: 기본값 3으로 동작한다
-    it("기본값 3으로 동작한다", async () => {
+    // 테스트 6: 기본값 6으로 동작한다
+    it("기본값 6으로 동작한다", async () => {
       const mockClient = createMockApiClient();
-      // videosPerChannel을 명시하지 않아 DEFAULT_SETTINGS의 기본값(3) 사용
+      // videosPerChannel을 명시하지 않아 DEFAULT_SETTINGS의 기본값(6) 사용
       const settings = createTestSettings({
         monitoredChannels: [
           { channelId: "UC_ch_1", channelTitle: "채널 A", thumbnailUrl: "https://example.com/a.jpg" },
@@ -210,10 +210,10 @@ describe("SubscriptionManager", () => {
 
       await manager.fetchNewVideos();
 
-      // 기본값 3이 maxResults로 전달되어야 한다
+      // 기본값 6이 maxResults로 전달되어야 한다
       expect(mockClient.fetchRecentVideos).toHaveBeenCalledWith(
         "UU_ch_1",
-        3,
+        6,
       );
     });
   });

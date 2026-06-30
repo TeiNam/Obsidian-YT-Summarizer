@@ -5,23 +5,26 @@
 
 /* 사이드바 컨테이너 */
 .youtube-summarizer-container {
-  padding: 12px;
+  padding: 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 /* 제목 */
 .youtube-summarizer-title {
-  margin: 0 0 4px 0;
-  font-size: 1.1em;
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
 }
 
 /* 입력 영역 컨테이너 */
 .youtube-summarizer-input-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 /* URL 입력창 */
@@ -67,24 +70,57 @@
   cursor: not-allowed;
 }
 
-/* 상태 메시지 영역 */
+/* 상태 메시지 영역 - 상태별 색/배경으로 피드백을 명확히 */
 .youtube-summarizer-status {
   font-size: 0.85em;
   min-height: 1.4em;
-  padding: 4px 0;
-  transition: color 0.15s ease;
+  line-height: 1.4;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+/* 메시지가 있을 때만 칩 형태로 보이도록 상태 클래스에서만 패딩/배경 부여 */
+.youtube-summarizer-status.loading,
+.youtube-summarizer-status.error,
+.youtube-summarizer-status.success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.youtube-summarizer-status.loading::before,
+.youtube-summarizer-status.error::before,
+.youtube-summarizer-status.success::before {
+  font-size: 0.95em;
+  line-height: 1;
 }
 
 .youtube-summarizer-status.loading {
   color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+
+.youtube-summarizer-status.loading::before {
+  content: "⏳";
 }
 
 .youtube-summarizer-status.error {
   color: var(--text-error);
+  background: rgba(var(--color-red-rgb, 224, 70, 70), 0.1);
+}
+
+.youtube-summarizer-status.error::before {
+  content: "⚠";
 }
 
 .youtube-summarizer-status.success {
   color: var(--text-success);
+  background: rgba(var(--color-green-rgb, 65, 165, 100), 0.12);
+}
+
+.youtube-summarizer-status.success::before {
+  content: "✓";
 }
 
 /* 프롬프트 편집 모달 */
@@ -122,20 +158,45 @@
   margin-top: 12px;
 }
 
-/* 스크립트 직접 입력 영역 */
+/* 스크립트 직접 입력 영역 - native <details>로 기본 접힘 */
 .youtube-summarizer-script-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 8px;
 }
 
+/* <summary> 토글 - 마커 커스터마이즈 */
 .youtube-summarizer-script-label {
-  font-size: 0.85em;
+  font-size: 0.8em;
   font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.youtube-summarizer-script-label:hover {
   color: var(--text-normal);
 }
 
+/* 기본 삼각형 마커 제거 후 직접 그림 */
+.youtube-summarizer-script-label::-webkit-details-marker {
+  display: none;
+}
+
+.youtube-summarizer-script-label::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.15s ease;
+}
+
+.youtube-summarizer-script-container[open] .youtube-summarizer-script-label::before {
+  transform: rotate(90deg);
+}
+
 .youtube-summarizer-script-textarea {
+  margin-top: 6px;
   width: 100%;
   min-height: 120px;
   padding: 8px 10px;
@@ -161,6 +222,7 @@
 .youtube-summarizer-script-hint {
   font-size: 0.75em;
   color: var(--text-muted);
+  margin-top: 6px;
 }
 
 /* ============================================================
@@ -168,20 +230,25 @@
    탭 전환 UI, 채널별 영상 목록, 요약 상태, 모바일 반응형
    ============================================================ */
 
-/* 탭 전환 UI */
+/* 탭 전환 UI - 세그먼트 컨트롤 스타일 */
 .youtube-summarizer-tabs {
   display: flex;
-  border-bottom: 1px solid var(--background-modifier-border);
-  margin-bottom: 8px;
+  gap: 2px;
+  padding: 3px;
+  background: var(--background-modifier-hover);
+  border-radius: 8px;
 }
 
 .youtube-summarizer-tab {
-  padding: 8px 16px;
+  flex: 1;
+  text-align: center;
+  padding: 6px 12px;
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: 0.85em;
+  font-weight: 500;
   color: var(--text-muted);
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .youtube-summarizer-tab:hover {
@@ -189,12 +256,13 @@
 }
 
 .youtube-summarizer-tab.active {
-  color: var(--interactive-accent);
-  border-bottom-color: var(--interactive-accent);
+  color: var(--text-normal);
+  background: var(--background-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .youtube-summarizer-tab-content {
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 /* 피드 뷰 */
@@ -230,68 +298,141 @@
   font-size: 0.85em;
 }
 
+/* 그룹 (사용자 정의 그룹명 단위) */
+.youtube-feed-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.youtube-feed-group-header {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--text-normal);
+  padding: 2px 2px 4px;
+  border-bottom: 2px solid var(--interactive-accent);
+  margin-bottom: 2px;
+}
+
 /* 채널 그룹 */
 .youtube-feed-channel-group {
-  margin-bottom: 12px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: 8px;
+  padding: 10px 12px;
 }
 
 .youtube-feed-channel-title {
-  font-size: 0.95em;
-  margin: 0 0 6px 0;
-  color: var(--text-normal);
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px 0;
+  color: var(--text-muted);
 }
 
 /* 영상 항목 */
 .youtube-feed-video-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   padding: 8px 0;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .youtube-feed-video-item:last-child {
   border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* 제목 + 액션을 한 줄에 (높이 절약) */
+.youtube-feed-video-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .youtube-feed-video-title {
   font-size: 0.9em;
+  font-weight: 500;
+  line-height: 1.35;
   color: var(--text-normal);
+  /* 길어도 버튼을 밀어내지 않도록 2줄로 제한 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .youtube-feed-video-meta {
-  font-size: 0.75em;
+  font-size: 0.72em;
+  color: var(--text-faint);
+}
+
+/* 더 보기 버튼 */
+.youtube-feed-show-more-btn {
+  margin-top: 6px;
+  padding: 4px 0;
+  width: 100%;
+  border: none;
+  background: transparent;
   color: var(--text-muted);
+  font-size: 0.78em;
+  cursor: pointer;
+  border-top: 1px dashed var(--background-modifier-border);
+  transition: color 0.15s ease;
+}
+
+.youtube-feed-show-more-btn:hover {
+  color: var(--interactive-accent);
 }
 
 /* 요약 버튼 및 상태 */
 .youtube-feed-summarize-btn {
+  flex-shrink: 0;
   padding: 4px 12px;
-  border: none;
-  border-radius: 4px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  font-size: 0.8em;
+  border: 1px solid var(--interactive-accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--interactive-accent);
+  font-size: 0.78em;
+  font-weight: 500;
   cursor: pointer;
   align-self: flex-start;
-  transition: opacity 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .youtube-feed-summarize-btn:hover {
-  opacity: 0.9;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 .youtube-feed-summarize-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  background: transparent;
+  color: var(--interactive-accent);
 }
 
 .youtube-feed-status {
   font-size: 0.75em;
   color: var(--text-muted);
+}
+
+.youtube-feed-status.completed {
+  color: var(--text-success);
+}
+
+.youtube-feed-status.completed::before {
+  content: "✓ ";
+}
+
+.youtube-feed-status.error {
+  color: var(--text-error);
+}
+
+.youtube-feed-status.error::before {
+  content: "⚠ ";
 }
 
 /* 모바일 반응형 */

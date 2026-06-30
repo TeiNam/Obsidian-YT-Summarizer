@@ -24,8 +24,10 @@ export interface PluginSettings {
   monitoredChannels: MonitoredChannel[];
   /** 구독 영상 요약 저장 폴더 경로 */
   subscriptionSaveFolderPath: string;
-  /** 채널당 표시할 최신 영상 개수 (기본값: 3, 범위: 1~10) */
+  /** 채널당 가져올 최신 영상 개수 (기본값: 6, 범위: 1~10) */
   videosPerChannel: number;
+  /** 이미 요약 완료한 영상 ID 목록 (피드에서 "요약함" 표시 영구화) */
+  summarizedVideoIds: string[];
 }
 
 /**
@@ -128,7 +130,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   youtubeDataApiKey: "",
   monitoredChannels: [],
   subscriptionSaveFolderPath: "YouTube Subscriptions",
-  videosPerChannel: 3,
+  videosPerChannel: 6,
+  summarizedVideoIds: [],
 };
 
 // ============================================================
@@ -148,6 +151,8 @@ export interface MonitoredChannel {
   thumbnailUrl: string;
   /** 채널별 저장 폴더 경로 (미설정 시 공통 폴더 사용) */
   saveFolderPath?: string;
+  /** 그룹명 (미설정 시 그룹 없음으로 분류, 예: "주식", "스터디") */
+  group?: string;
 }
 
 /**
