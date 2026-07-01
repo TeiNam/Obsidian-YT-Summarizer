@@ -8,16 +8,64 @@ import { App, TFile, TFolder } from "obsidian";
 import { NoteContent } from "../models/types";
 
 /**
- * 파일명에 사용할 수 없는 특수 문자를 제거하는 함수
- * 옵시디언 및 OS 파일 시스템에서 허용되지 않는 문자를 제거
+ * 파일명 최대 바이트 수 (제목 부분 기준)
+ * 대부분 파일시스템의 basename 한도는 255바이트. 날짜 접두사("YY-MM-DD ")·
+ * 확장자(".md")·중복 시 타임스탬프 여유를 두고 200바이트로 캡.
+ * 한글은 UTF-8에서 글자당 3바이트이므로 바이트 기준으로 잘라야 안전하다.
+ */
+const MAX_FILENAME_BYTES = 200;
+
+/**
+ * 제어 문자 여부 판정 (U+0000~U+001F, U+007F)
+ * 정규식 리터럴에 제어 문자를 직접 넣으면 소스가 깨질 수 있어 코드로 판정한다.
+ */
+function isControlChar(codePoint: number): boolean {
+  return codePoint <= 0x1f || codePoint === 0x7f;
+}
+
+/**
+ * 문자열을 코드포인트 경계를 지키며 최대 바이트 수까지 자른다.
+ * for...of는 코드포인트 단위로 순회하므로 서로게이트 페어(이모지 등)가 깨지지 않는다.
+ */
+function truncateToBytes(str: string, maxBytes: number): string {
+  const encoder = new TextEncoder();
+  let bytes = 0;
+  let result = "";
+  for (const char of str) {
+    const charBytes = encoder.encode(char).length;
+    if (bytes + charBytes > maxBytes) break;
+    bytes += charBytes;
+    result += char;
+  }
+  return result;
+}
+
+/**
+ * 파일명에 사용할 수 없는 특수 문자를 제거하고 길이를 제한하는 함수
+ * 옵시디언 및 OS 파일 시스템에서 허용되지 않는 문자를 제거하고,
+ * 너무 긴 제목은 바이트 기준으로 잘라 파일 생성 실패를 방지한다.
  * @param title - 원본 제목 문자열
- * @returns 특수 문자가 제거된 안전한 파일명
+ * @returns 특수 문자가 제거되고 길이가 제한된 안전한 파일명
  */
 export function sanitizeFileName(title: string): string {
-  // 파일명에 사용할 수 없는 특수 문자 제거: \ / : * ? " < > |
-  const sanitized = title.replace(/[\\/:*?"<>|]/g, "").trim();
+  // 1) 제어 문자 제거 (코드포인트 단위 순회로 서로게이트 페어 보존)
+  let cleaned = "";
+  for (const char of title) {
+    if (!isControlChar(char.codePointAt(0)!)) cleaned += char;
+  }
+
+  cleaned = cleaned
+    // 2) OS 예약 문자(\ / : * ? " < > |)와 옵시디언 링크 문법 문자(# ^ [ ]) 제거
+    .replace(/[\\/:*?"<>|#^[\]]/g, "")
+    // 3) 개행·탭·연속 공백을 단일 공백으로 정리
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // 4) 바이트 기준으로 자른 뒤, 잘린 끝의 점·공백 제거(Windows에서 후행 점/공백 금지)
+  const truncated = truncateToBytes(cleaned, MAX_FILENAME_BYTES).replace(/[.\s]+$/, "");
+
   // 모든 문자가 제거된 경우 기본 파일명 사용
-  return sanitized.length > 0 ? sanitized : "Untitled";
+  return truncated.length > 0 ? truncated : "Untitled";
 }
 
 /**

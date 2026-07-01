@@ -187,5 +187,41 @@ describe("sanitizeFileName", () => {
   it("정상 문자열은 그대로 반환된다", () => {
     expect(sanitizeFileName("TypeScript 입문 강의")).toBe("TypeScript 입문 강의");
   });
+
+  it("옵시디언 링크 문법 문자(# ^ [ ])를 제거한다", () => {
+    expect(sanitizeFileName("[영상] #1 ^abc")).toBe("영상 1 abc");
+  });
+
+  it("제어 문자·개행·탭을 제거하고 연속 공백을 하나로 정리한다", () => {
+    // \n \t \x00 등 제어 문자는 제거되고, 남은 연속 공백은 하나로 합쳐진다
+    expect(sanitizeFileName("제목\n\t줄바꿈  \x00포함")).toBe("제목줄바꿈 포함");
+  });
+
+  it("빈 결과는 Untitled로 폴백한다", () => {
+    expect(sanitizeFileName("///:::")).toBe("Untitled");
+    expect(sanitizeFileName("   ")).toBe("Untitled");
+  });
+
+  it("긴 제목을 200바이트 이내로 자른다 (한글 3바이트 기준)", () => {
+    const longTitle = "가".repeat(100); // 300바이트
+    const result = sanitizeFileName(longTitle);
+    const bytes = new TextEncoder().encode(result).length;
+    expect(bytes).toBeLessThanOrEqual(200);
+    // 66글자(198바이트)까지만 남아야 함
+    expect(result).toBe("가".repeat(66));
+  });
+
+  it("바이트 단위로 잘라도 이모지(서로게이트 페어)가 깨지지 않는다", () => {
+    const title = "😀".repeat(60); // 이모지 1개 = 4바이트, 240바이트
+    const result = sanitizeFileName(title);
+    // 유효하지 않은 서로게이트가 남지 않아야 함 (U+FFFD 대체문자 없음)
+    expect(result).not.toContain("�");
+    expect(new TextEncoder().encode(result).length).toBeLessThanOrEqual(200);
+  });
+
+  it("잘린 끝의 점·공백을 제거한다 (Windows 후행 점/공백 금지)", () => {
+    expect(sanitizeFileName("제목...")).toBe("제목");
+    expect(sanitizeFileName("제목   ")).toBe("제목");
+  });
 });
 
