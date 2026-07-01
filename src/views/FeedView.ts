@@ -48,6 +48,8 @@ export class FeedView {
   private contentEl: HTMLElement | null = null;
   /** 영상별 요약 상태 추적 맵 (videoId → 상태) */
   private videoStatusMap: Map<string, VideoSummaryStatus> = new Map();
+  /** 영상별 원본 정보 맵 (videoId → VideoItem) - 상태 재렌더/재시도 시 사용 */
+  private videoItemMap: Map<string, VideoItem> = new Map();
   /** "더 보기"로 전체 영상이 펼쳐진 채널 ID 집합 */
   private expandedChannels: Set<string> = new Set();
   /** 마지막으로 로드한 채널별 영상 (더보기/재렌더 시 재사용) */
@@ -282,6 +284,9 @@ export class FeedView {
     metaEl.textContent = `${video.channelTitle} · ${dateStr}`;
     itemEl.appendChild(metaEl);
 
+    // 재시도/상태 재렌더 시 사용할 원본 정보 보관
+    this.videoItemMap.set(video.videoId, video);
+
     // 요약 상태 및 버튼 영역 (영구 저장된 완료 상태 포함하여 해석)
     const currentStatus = this.resolveStatus(video.videoId);
     this.renderVideoActions(itemEl, video, currentStatus);
@@ -340,11 +345,19 @@ export class FeedView {
       statusEl.textContent = this.tr.feedSummarized;
       target.appendChild(statusEl);
     } else if (status === "error") {
-      // 요약 실패 상태
+      // 요약 실패 상태 - 재시도 가능하도록 요약 버튼 다시 활성화
       const statusEl = document.createElement("span");
       statusEl.className = "youtube-feed-status error";
       statusEl.textContent = this.tr.feedSummaryError;
       target.appendChild(statusEl);
+
+      const btn = document.createElement("button");
+      btn.className = "youtube-feed-summarize-btn";
+      btn.textContent = this.tr.feedSummarizeButton;
+      btn.addEventListener("click", () => {
+        this.summarizeVideo(video);
+      });
+      target.appendChild(btn);
     }
   }
 
@@ -412,17 +425,11 @@ export class FeedView {
     ) as HTMLElement | null;
     if (!itemEl) return;
 
-    // videoId로 원본 VideoItem을 복원할 수 없으므로 DOM에서 정보 추출
-    // renderVideoActions는 상태에 따라 버튼/상태 텍스트만 변경
-    const dummyVideo: VideoItem = {
-      videoId,
-      title: "",
-      channelId: "",
-      channelTitle: "",
-      publishedAt: "",
-      thumbnailUrl: "",
-    };
-    this.renderVideoActions(itemEl, dummyVideo, status);
+    // 보관된 원본 VideoItem으로 액션 영역(버튼/상태 텍스트) 갱신
+    // (재시도 버튼이 올바른 채널/업로드 날짜로 요약을 실행하려면 실제 정보가 필요)
+    const originalVideo = this.videoItemMap.get(videoId);
+    if (!originalVideo) return;
+    this.renderVideoActions(itemEl, originalVideo, status);
   }
 
   /**
@@ -430,6 +437,7 @@ export class FeedView {
    */
   destroy(): void {
     this.videoStatusMap.clear();
+    this.videoItemMap.clear();
     this.expandedChannels.clear();
     this.lastChannelVideos = [];
     while (this.containerEl.firstChild) {

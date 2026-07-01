@@ -314,6 +314,58 @@ describe("FeedView", () => {
       expect(okVideoBtn.disabled).toBeFalsy();
       expect(okVideoBtn.textContent).toBe(tr.feedSummarizeButton);
     });
+
+    it("요약 실패 후 재시도 버튼으로 올바른 영상 정보로 다시 요약할 수 있다", async () => {
+      const summarizeMock = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("요약 실패"))
+        .mockResolvedValueOnce({ path: "test.md" });
+
+      deps = createMockDeps({
+        subscriptionManager: {
+          fetchNewVideos: vi.fn().mockResolvedValue(mockChannelVideos),
+          getUploadsPlaylistId: vi.fn(),
+        } as any,
+        summarizerServiceFactory: vi.fn(() => ({
+          summarize: summarizeMock,
+        })) as any,
+        getSettings: () => ({
+          ...DEFAULT_SETTINGS,
+          monitoredChannels: [
+            { channelId: "UC_test_1", channelTitle: "테스트 채널 1", thumbnailUrl: "" },
+          ],
+        }),
+      });
+      feedView = new FeedView(containerEl, deps);
+      feedView.render();
+      await feedView.loadFeed();
+
+      const firstBtn = containerEl.querySelector(
+        ".youtube-feed-summarize-btn"
+      ) as HTMLButtonElement;
+      firstBtn.click();
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 실패 후 재시도 버튼이 표시됨
+      const retryBtn = containerEl.querySelector(
+        ".youtube-feed-summarize-btn"
+      ) as HTMLButtonElement;
+      expect(retryBtn).not.toBeNull();
+      expect(retryBtn.disabled).toBeFalsy();
+
+      retryBtn.click();
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 두 번째 호출도 원본 영상의 URL/업로드 날짜로 실행됐는지 확인
+      expect(summarizeMock).toHaveBeenCalledTimes(2);
+      expect(summarizeMock.mock.calls[1][0]).toBe(
+        "https://www.youtube.com/watch?v=video_1"
+      );
+      expect(summarizeMock.mock.calls[1][4]).toBe("2024-06-15T10:30:00Z");
+
+      const statusEl = containerEl.querySelector(".youtube-feed-status");
+      expect(statusEl!.textContent).toBe(tr.feedSummarized);
+    });
   });
 
   describe("새로고침 버튼 존재 확인", () => {
