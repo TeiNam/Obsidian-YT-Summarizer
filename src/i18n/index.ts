@@ -97,6 +97,14 @@ export interface Translations {
   scriptPlaceholder: string;
   scriptHint: string;
 
+  // 벌크(여러 URL) 입력
+  bulkLabel: string;
+  bulkPlaceholder: string;
+  bulkHint: string;
+  bulkButton: string;
+  bulkProgress: (done: number, total: number) => string;
+  bulkDone: (ok: number, fail: number) => string;
+
   // 채널 그룹
   channelGroupLabel: string;
   channelGroupDesc: string;
@@ -189,6 +197,13 @@ const en: Translations = {
   scriptPlaceholder: "Paste the video script or transcript here (optional)",
   scriptHint: "If provided, this text will be used for summarization instead of auto-extraction.",
 
+  bulkLabel: "Bulk summarize (multiple links)",
+  bulkPlaceholder: "One YouTube link per line",
+  bulkHint: "Links run sequentially, one at a time. Invalid lines are skipped.",
+  bulkButton: "Summarize all",
+  bulkProgress: (done, total) => `Processing ${done}/${total}...`,
+  bulkDone: (ok, fail) => `Done: ${ok} succeeded, ${fail} failed`,
+
   // 채널 그룹
   channelGroupLabel: "Group",
   channelGroupDesc: "Group this channel under a name (e.g. Stocks, Study). Leave empty for no group.",
@@ -280,6 +295,13 @@ const ko: Translations = {
   scriptLabel: "스크립트 / 자막",
   scriptPlaceholder: "영상의 스크립트 또는 자막을 여기에 붙여넣으세요 (선택사항)",
   scriptHint: "입력하면 자동 추출 대신 이 텍스트를 사용하여 요약합니다.",
+
+  bulkLabel: "여러 개 한번에 요약",
+  bulkPlaceholder: "한 줄에 유튜브 링크 하나씩",
+  bulkHint: "위에서부터 한 번에 하나씩 순차로 요약합니다. 잘못된 줄은 건너뜁니다.",
+  bulkButton: "전체 요약",
+  bulkProgress: (done, total) => `처리 중 ${done}/${total}...`,
+  bulkDone: (ok, fail) => `완료: 성공 ${ok}건, 실패 ${fail}건`,
 
   // 채널 그룹
   channelGroupLabel: "그룹",

@@ -48,6 +48,10 @@ export class SidebarView extends ItemView {
   private urlInput!: HTMLInputElement;
   /** 스크립트/자막 직접 입력 영역 */
   private scriptTextarea!: HTMLTextAreaElement;
+  /** 벌크(여러 URL) 입력 영역 */
+  private bulkTextarea!: HTMLTextAreaElement;
+  /** 벌크 요약 실행 버튼 */
+  private bulkButton!: HTMLButtonElement;
   /** 요약 실행 버튼 */
   private summarizeButton!: HTMLButtonElement;
   /** 상태 메시지 표시 영역 */
@@ -267,6 +271,34 @@ export class SidebarView extends ItemView {
       cls: "youtube-summarizer-script-hint",
     });
 
+    // 벌크 입력 영역 - 한 줄에 링크 하나씩, 큐처럼 순차 실행 (기본 접힘)
+    const bulkContainer = inputContainer.createEl("details", {
+      cls: "youtube-summarizer-script-container",
+    });
+
+    bulkContainer.createEl("summary", {
+      text: tr.bulkLabel,
+      cls: "youtube-summarizer-script-label",
+    });
+
+    this.bulkTextarea = bulkContainer.createEl("textarea", {
+      placeholder: tr.bulkPlaceholder,
+      cls: "youtube-summarizer-script-textarea",
+    });
+
+    this.bulkButton = bulkContainer.createEl("button", {
+      text: tr.bulkButton,
+      cls: "youtube-summarizer-button",
+    });
+    this.bulkButton.addEventListener("click", () => {
+      this.handleBulkSummarize();
+    });
+
+    bulkContainer.createDiv({
+      text: tr.bulkHint,
+      cls: "youtube-summarizer-script-hint",
+    });
+
     // 상태 메시지 영역
     this.statusMessage = container.createDiv({
       cls: "youtube-summarizer-status",
@@ -363,6 +395,71 @@ export class SidebarView extends ItemView {
       this.summarizeButton.textContent = tr.summarizeButton;
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  /**
+   * 벌크 요약 핸들러
+   * textarea를 줄 단위로 파싱 → 유효한 유튜브 URL만 큐로 만들어 순차 처리
+   * 각 항목은 handleSummarize와 동일한 파이프라인(summarize)을 재사용
+   */
+  private async handleBulkSummarize(): Promise<void> {
+    if (this.isProcessing) return;
+
+    const tr = this.tr;
+    const urls = this.bulkTextarea.value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && validateYouTubeUrl(line).isValid);
+
+    if (urls.length === 0) {
+      this.showError(tr.errorInvalidUrl);
+      return;
+    }
+
+    if (!this.createSummarizerService || !this.getSettings) {
+      this.showError(tr.errorNotInitialized);
+      return;
+    }
+
+    const settings = this.getSettings();
+    if (!settings.apiKey) {
+      this.showError(tr.errorMissingApiKey);
+      return;
+    }
+
+    let ok = 0;
+    let fail = 0;
+    try {
+      this.isProcessing = true;
+      this.bulkButton.disabled = true;
+      this.setLoading(true, tr.bulkProgress(0, urls.length));
+
+      // 큐 순차 실행: 하나 끝나야 다음 시작 (API/노트 순서 보존)
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+        try {
+          const service = this.createSummarizerService();
+          await service.summarize(url, settings.language, (stage) => {
+            this.setLoading(
+              true,
+              `${tr.bulkProgress(i, urls.length)} ${this.resolveStageText(stage)}`
+            );
+          });
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+
+      this.showSuccess(tr.bulkDone(ok, fail));
+      new Notice(tr.bulkDone(ok, fail));
+      this.bulkTextarea.value = "";
+    } finally {
+      this.isProcessing = false;
+      this.bulkButton.disabled = false;
+      this.summarizeButton.disabled = false;
+      this.summarizeButton.textContent = tr.summarizeButton;
     }
   }
 

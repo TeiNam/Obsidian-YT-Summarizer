@@ -354,6 +354,70 @@ describe("SidebarView", () => {
     });
   });
 
+  describe("벌크 요약 - 순차 처리", () => {
+    let mockSummarizerService: SummarizerService;
+
+    beforeEach(async () => {
+      mockSummarizerService = { summarize: vi.fn() } as unknown as SummarizerService;
+      view.setDependencies(mockSummarizerService, () => ({ ...DEFAULT_SETTINGS, apiKey: "test-key" }));
+      await view.onOpen();
+    });
+
+    function getBulk(): { textarea: HTMLTextAreaElement; button: HTMLButtonElement } {
+      const container = view.contentEl.querySelectorAll("details")[1];
+      return {
+        textarea: container.querySelector("textarea") as HTMLTextAreaElement,
+        button: container.querySelector("button") as HTMLButtonElement,
+      };
+    }
+
+    it("유효한 URL만 줄 단위로 파싱해 순차로 summarize를 호출한다", async () => {
+      (mockSummarizerService.summarize as ReturnType<typeof vi.fn>).mockResolvedValue({ path: "n.md" });
+      const { textarea, button } = getBulk();
+      textarea.value = [
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "  not-a-url  ",
+        "https://youtu.be/dQw4w9WgXcQ",
+        "",
+      ].join("\n");
+
+      button.click();
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 잘못된 줄과 빈 줄은 건너뛰고 2건만 호출
+      expect(mockSummarizerService.summarize).toHaveBeenCalledTimes(2);
+      expect(textarea.value).toBe("");
+    });
+
+    it("유효한 URL이 없으면 오류를 표시하고 호출하지 않는다", async () => {
+      const { textarea, button } = getBulk();
+      textarea.value = "hello\nworld";
+      button.click();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(mockSummarizerService.summarize).not.toHaveBeenCalled();
+    });
+
+    it("일부 실패해도 나머지를 계속 처리하고 완료 요약을 표시한다", async () => {
+      (mockSummarizerService.summarize as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ path: "1.md" })
+        .mockRejectedValueOnce(new Error("실패"))
+        .mockResolvedValueOnce({ path: "3.md" });
+      const { textarea, button } = getBulk();
+      textarea.value = [
+        "https://youtu.be/dQw4w9WgXcQ",
+        "https://youtu.be/dQw4w9WgXcQ",
+        "https://youtu.be/dQw4w9WgXcQ",
+      ].join("\n");
+
+      button.click();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockSummarizerService.summarize).toHaveBeenCalledTimes(3);
+      const status = view.contentEl.querySelector(".youtube-summarizer-status") as HTMLElement;
+      expect(status.classList.contains("success")).toBe(true);
+    });
+  });
+
   // ============================================================
   // 탭 전환 UI 테스트
   // Requirements: 7.1, 7.2, 7.3
