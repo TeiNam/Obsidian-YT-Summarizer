@@ -2,17 +2,17 @@
 // YouTubeSummarizerPlugin - 플러그인 진입점
 // 옵시디언 Plugin 클래스를 상속하여 사이드바 뷰, 설정 탭,
 // 서비스 의존성을 연결하는 메인 모듈
-// API 마이그레이션 후: YouTubeSummaryApiClient 사용
+// 매 요약마다 최신 설정으로 로컬 자막·모델 서비스를 생성
 // ============================================================
 
 import { Plugin, WorkspaceLeaf, addIcon } from "obsidian";
+import { detectLanguage } from "./i18n";
 import { PluginSettings, DEFAULT_SETTINGS, SubscriptionChannel } from "./models/types";
 import {
   SidebarView,
   VIEW_TYPE_YOUTUBE_SUMMARIZER,
 } from "./views/SidebarView";
 import { SettingsTab } from "./settings/SettingsTab";
-import { YouTubeSummaryApiClient } from "./services/YouTubeSummaryApiClient";
 import { NoteCreator } from "./services/NoteCreator";
 import { SummarizerService } from "./services/SummarizerService";
 import { YouTubeDataApiClient } from "./services/YouTubeDataApiClient";
@@ -39,12 +39,11 @@ export default class YouTubeSummarizerPlugin extends Plugin {
         // 서비스 팩토리: 매 요약 시 최신 설정으로 서비스 인스턴스 생성
         // saveFolderPath가 전달되면 해당 경로 사용 (채널별 폴더), 아니면 기본 폴더
         const serviceFactory = (saveFolderPath?: string) => {
-          const apiClient = new YouTubeSummaryApiClient(this.settings.apiKey);
           const noteCreator = new NoteCreator(
             this.app,
             saveFolderPath ?? this.settings.saveFolderPath
           );
-          return new SummarizerService(apiClient, noteCreator);
+          return new SummarizerService({ ...this.settings }, noteCreator);
         };
 
         // 구독 관련 의존성 생성 (매번 최신 설정으로 생성)
@@ -100,11 +99,15 @@ export default class YouTubeSummarizerPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign(
-      {},
-      DEFAULT_SETTINGS,
-      await this.loadData()
-    );
+    const saved = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    // 저장된 UI 언어가 없으면(첫 실행) 시스템 언어로 초기화
+    if (!saved?.language) {
+      this.settings.language = detectLanguage();
+    }
+    // 기본 배열을 다른 플러그인 인스턴스나 이전 설정 객체와 공유하지 않는다.
+    this.settings.monitoredChannels = [...this.settings.monitoredChannels];
+    this.settings.summarizedVideoIds = [...this.settings.summarizedVideoIds];
   }
 
   async saveSettings(): Promise<void> {

@@ -140,14 +140,15 @@ export class NoteCreator {
 
     // 요약 섹션
     parts.push("");
-    parts.push("## 요약");
+    // ko(또는 미지정)만 한국어 제목, 그 외 타겟 언어는 영어 제목
+    parts.push(!content.language || content.language === "ko" ? "## 요약" : "## Summary");
     parts.push("");
     parts.push(content.summary);
 
     // 핵심 인사이트 섹션
     if (content.keyPoints && content.keyPoints.length > 0) {
       parts.push("");
-      parts.push("## 핵심 인사이트");
+      parts.push(!content.language || content.language === "ko" ? "## 핵심 인사이트" : "## Key insights");
       parts.push("");
       for (const point of content.keyPoints) {
         parts.push(`- ${point}`);

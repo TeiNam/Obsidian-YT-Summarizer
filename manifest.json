@@ -3,7 +3,7 @@
   "name": "YouTube Summarizer",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Summarize YouTube videos with AI and save as structured markdown notes.",
+  "description": "유튜브 자막을 Bedrock·OpenAI 호환 모델·Claude·Gemini로 직접 요약하여 구조화된 노트로 저장합니다.",
   "author": "teinam",
   "authorUrl": "https://github.com/teinam",
   "isDesktopOnly": false

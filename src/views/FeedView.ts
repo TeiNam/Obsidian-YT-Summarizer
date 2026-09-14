@@ -48,6 +48,7 @@ export class FeedView {
   private contentEl: HTMLElement | null = null;
   /** 영상별 요약 상태 추적 맵 (videoId → 상태) */
   private videoStatusMap: Map<string, VideoSummaryStatus> = new Map();
+  private videoErrorMap: Map<string, string> = new Map();
   /** 영상별 원본 정보 맵 (videoId → VideoItem) - 상태 재렌더/재시도 시 사용 */
   private videoItemMap: Map<string, VideoItem> = new Map();
   /** "더 보기"로 전체 영상이 펼쳐진 채널 ID 집합 */
@@ -348,7 +349,7 @@ export class FeedView {
       // 요약 실패 상태 - 재시도 가능하도록 요약 버튼 다시 활성화
       const statusEl = document.createElement("span");
       statusEl.className = "youtube-feed-status error";
-      statusEl.textContent = this.tr.feedSummaryError;
+      statusEl.textContent = this.videoErrorMap.get(video.videoId) ?? this.tr.feedSummaryError;
       target.appendChild(statusEl);
 
       const btn = document.createElement("button");
@@ -370,6 +371,8 @@ export class FeedView {
    * @param video - 요약할 영상 정보
    */
   async summarizeVideo(video: VideoItem): Promise<void> {
+    if (this.videoStatusMap.get(video.videoId) === "summarizing") return;
+    this.videoErrorMap.delete(video.videoId);
     // 상태를 "summarizing"으로 변경하고 UI 업데이트
     this.updateVideoStatus(video.videoId, "summarizing");
 
@@ -389,7 +392,7 @@ export class FeedView {
       const summarizerService = this.deps.summarizerServiceFactory(saveFolderPath);
       await summarizerService.summarize(
         videoUrl,
-        settings.language,
+        settings.summaryLanguage,
         () => {
           // 진행 상태 콜백 - 상태는 이미 "summarizing"으로 표시 중
         },
@@ -404,8 +407,12 @@ export class FeedView {
       if (this.deps.markSummarized) {
         await this.deps.markSummarized(video.videoId);
       }
-    } catch {
+    } catch (error) {
       // 실패 시 해당 영상만 오류 상태로 표시 (다른 영상에 영향 없음)
+      this.videoErrorMap.set(
+        video.videoId,
+        error instanceof Error ? error.message : this.tr.feedSummaryError
+      );
       this.updateVideoStatus(video.videoId, "error");
     }
   }
@@ -437,6 +444,7 @@ export class FeedView {
    */
   destroy(): void {
     this.videoStatusMap.clear();
+    this.videoErrorMap.clear();
     this.videoItemMap.clear();
     this.expandedChannels.clear();
     this.lastChannelVideos = [];

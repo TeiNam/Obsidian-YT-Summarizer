@@ -1,13 +1,46 @@
 // ============================================================
 // SettingsTab - 플러그인 설정 탭
-// API Key, 언어, 저장 폴더 설정
+// 모델 제공자·인증, 언어, 저장 폴더 설정
 // 구독 피드 설정: 수동 채널 추가 방식 (채널 ID 입력 → channels.list API 조회 → 추가)
 // ============================================================
 
-import { App, Notice, PluginSettingTab, Setting } from "obsidian";
-import { PluginSettings, SubscriptionChannel, MonitoredChannel } from "../models/types";
+import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
+import {
+  AiProvider, PluginSettings, SubscriptionChannel, MonitoredChannel,
+  SUMMARY_LANGUAGES, SummaryLanguage,
+} from "../models/types";
 import { t, Language } from "../i18n";
+import { listAvailableModels } from "../services/AiModelClient";
 import { FolderSuggest } from "./FolderSuggest";
+
+/** 불러온 모델 ID 목록을 모델 입력란의 자동완성으로 제안 */
+class ModelSuggest extends AbstractInputSuggest<string> {
+  constructor(
+    app: App,
+    private textInputEl: HTMLInputElement,
+    private getModels: () => string[],
+    private onPick: (value: string) => void
+  ) {
+    super(app, textInputEl);
+  }
+
+  getSuggestions(inputStr: string): string[] {
+    const query = inputStr.toLowerCase();
+    return this.getModels().filter((id) => id.toLowerCase().includes(query));
+  }
+
+  renderSuggestion(id: string, el: HTMLElement): void {
+    el.setText(id);
+  }
+
+  selectSuggestion(id: string): void {
+    if (!this.getModels().includes(id)) return;
+    this.textInputEl.value = id;
+    this.textInputEl.trigger("input");
+    this.onPick(id);
+    this.close();
+  }
+}
 
 /**
  * 플러그인과의 상호작용을 위한 인터페이스
@@ -28,6 +61,11 @@ export class SettingsTab extends PluginSettingTab {
   private plugin: YouTubeSummarizerPluginInterface;
   /** 채널 추가 진행 중 여부 */
   private isAddingChannel = false;
+  /** 불러온 모델 ID 목록 (제공자·접속 설정 변경 시 초기화) */
+  private availableModels: string[] | null = null;
+  private modelListVersion = 0;
+  /** 모델 목록 로딩 진행 중 여부 */
+  private isLoadingModels = false;
 
   constructor(app: App, plugin: YouTubeSummarizerPluginInterface) {
     super(app, plugin as any);
@@ -43,15 +81,13 @@ export class SettingsTab extends PluginSettingTab {
     const toggleBtn = document.createElement("button");
     toggleBtn.type = "button";
     toggleBtn.className = "clickable-icon setting-editor-extra-setting-button";
-    toggleBtn.setAttribute("aria-label", "Toggle visibility");
-    toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    toggleBtn.setAttribute("aria-label", t(this.plugin.settings.language ?? "en").toggleVisibilityAria);
+    setIcon(toggleBtn, "eye");
     toggleBtn.addEventListener("click", () => {
       const isPassword = inputEl.type === "password";
       inputEl.type = isPassword ? "text" : "password";
       // 아이콘 변경: 눈 열림 ↔ 눈 닫힘
-      toggleBtn.innerHTML = isPassword
-        ? `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+      setIcon(toggleBtn, isPassword ? "eye-off" : "eye");
     });
     inputEl.parentElement?.appendChild(toggleBtn);
   }
@@ -66,8 +102,7 @@ export class SettingsTab extends PluginSettingTab {
     const lang = this.plugin.settings.language ?? "en";
     const tr = t(lang);
 
-    // 앱 이름 및 설명 헤더
-    containerEl.createEl("h2", { text: tr.settingsHeader });
+    // 플러그인 이름 헤딩은 심사 기준상 금지 — 설명만 표시
     const descEl = containerEl.createEl("p", { text: tr.settingsDescription });
     descEl.addClass("setting-item-description");
 
@@ -87,20 +122,7 @@ export class SettingsTab extends PluginSettingTab {
           });
       });
 
-    // 요약 서버 API Key 입력 필드 (눈 아이콘 토글로 마스킹/표시 전환)
-    new Setting(containerEl)
-      .setName(tr.apiKeyLabel)
-      .setDesc(tr.apiKeyDesc)
-      .addText((text) => {
-        text
-          .setPlaceholder("your-api-key-here")
-          .setValue(this.plugin.settings.apiKey)
-          .onChange(async (value: string) => {
-            this.plugin.settings.apiKey = value;
-            await this.plugin.saveSettings();
-          });
-        this.addPasswordToggle(text.inputEl);
-      });
+    this.renderAiSettings(containerEl, tr);
 
     // 노트 저장 폴더 경로 설정 (볼트 폴더 자동완성)
     new Setting(containerEl)
@@ -124,6 +146,174 @@ export class SettingsTab extends PluginSettingTab {
     this.renderSubscriptionSection(containerEl, tr);
   }
 
+  private renderAiSettings(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
+    const settings = this.plugin.settings;
+    new Setting(containerEl)
+      .setName(tr.summaryLanguageLabel)
+      .setDesc(tr.summaryLanguageDesc)
+      .addDropdown((dropdown) => {
+        for (const { code, label } of SUMMARY_LANGUAGES) dropdown.addOption(code, label);
+        dropdown
+          .setValue(settings.summaryLanguage)
+          .onChange(async (value) => {
+            this.plugin.settings.summaryLanguage = value as SummaryLanguage;
+            await this.plugin.saveSettings();
+          });
+      });
+    new Setting(containerEl)
+      .setName(tr.providerLabel)
+      .setDesc(tr.providerDesc)
+      .addDropdown((dropdown) => {
+        dropdown.addOption("bedrock", "Amazon Bedrock")
+          .addOption("openai", "OpenAI / OpenAI-compatible")
+          .addOption("anthropic", "Anthropic Claude")
+          .addOption("gemini", "Google Gemini")
+          .setValue(settings.aiProvider)
+          .onChange(async (value) => {
+            this.plugin.settings.aiProvider = value as AiProvider;
+            this.invalidateModelList();
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    const modelField = {
+      bedrock: "bedrockModelId", openai: "openaiModel",
+      anthropic: "anthropicModel", gemini: "geminiModel",
+    } as const;
+
+    if (settings.aiProvider === "bedrock") {
+      new Setting(containerEl)
+        .setName(tr.bedrockAuthLabel)
+        .addDropdown((dropdown) => {
+          dropdown.addOption("bearer", tr.bedrockBearerOption)
+            .addOption("profile", tr.bedrockProfileOption)
+            .setValue(settings.bedrockAuthMode)
+            .onChange(async (value) => {
+              this.plugin.settings.bedrockAuthMode = value as "bearer" | "profile";
+              this.invalidateModelList();
+              await this.plugin.saveSettings();
+              this.display();
+            });
+        });
+      this.modelText(containerEl, tr.bedrockRegionLabel, tr.bedrockRegionDesc, "bedrockRegion");
+      if (settings.bedrockAuthMode === "profile") {
+        this.modelText(containerEl, tr.bedrockProfileLabel, tr.bedrockProfileDesc, "bedrockProfile");
+      } else {
+        this.modelText(containerEl, tr.bedrockTokenLabel, tr.bedrockTokenDesc, "bedrockBearerToken", true);
+      }
+    } else {
+      if (settings.aiProvider === "openai") {
+        this.modelText(containerEl, tr.openaiBaseUrlLabel, tr.openaiBaseUrlDesc, "openaiBaseUrl");
+      }
+      const keyField = { openai: "openaiApiKey", anthropic: "anthropicApiKey", gemini: "geminiApiKey" } as const;
+      this.modelText(containerEl, tr.modelApiKeyLabel, tr.modelApiKeyDesc, keyField[settings.aiProvider], true);
+    }
+
+    // 인증 정보 입력 뒤에 모델 선택 (불러오기 버튼 + 자동완성)
+    this.renderModelSetting(containerEl, tr, modelField[settings.aiProvider]);
+
+    for (const [key, label, desc, min, max] of [
+      ["maxInputChars", tr.maxInputCharsLabel, tr.maxInputCharsDesc, 1000, 1000000],
+      ["maxOutputTokens", tr.maxOutputTokensLabel, tr.maxOutputTokensDesc, 128, 128000],
+    ] as const) {
+      new Setting(containerEl).setName(label).setDesc(desc).addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = String(min);
+        text.inputEl.max = String(max);
+        text.inputEl.step = "1";
+        text.setValue(String(settings[key])).onChange(async (value) => {
+          const number = Number(value);
+          if (!Number.isInteger(number) || number < min || number > max) {
+            text.inputEl.setCustomValidity(tr.errorInvalidLimits);
+            return;
+          }
+          text.inputEl.setCustomValidity("");
+          this.plugin.settings[key] = number;
+          await this.plugin.saveSettings();
+        });
+      });
+    }
+  }
+
+  /**
+   * 모델 ID 입력 행: 직접 입력 + "모델 불러오기" 버튼
+   * 불러온 목록은 입력란 자동완성(ModelSuggest)으로 제안하고, 실패하면 Notice로 알린다
+   */
+  private renderModelSetting(
+    containerEl: HTMLElement,
+    tr: ReturnType<typeof t>,
+    key: "bedrockModelId" | "openaiModel" | "anthropicModel" | "geminiModel"
+  ): void {
+    new Setting(containerEl)
+      .setName(tr.modelLabel)
+      .setDesc(tr.modelDesc)
+      .addText((text) => {
+        const version = this.modelListVersion;
+        text.setValue(this.plugin.settings[key]).onChange(async (value) => {
+          this.plugin.settings[key] = value.trim();
+          await this.plugin.saveSettings();
+        });
+        new ModelSuggest(
+          this.app,
+          text.inputEl,
+          () => version === this.modelListVersion ? this.availableModels ?? [] : [],
+          async (value) => {
+            this.plugin.settings[key] = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      })
+      .addButton((button) => {
+        button
+          .setButtonText(this.isLoadingModels ? tr.modelListLoading : tr.modelListButton)
+          .onClick(async () => {
+            if (this.isLoadingModels) return;
+            this.isLoadingModels = true;
+            const version = this.modelListVersion;
+            button.setButtonText(tr.modelListLoading);
+            try {
+              const models = await listAvailableModels({ ...this.plugin.settings });
+              if (version !== this.modelListVersion) return;
+              this.availableModels = models;
+              new Notice(tr.modelListLoaded(this.availableModels.length));
+            } catch (error) {
+              if (version !== this.modelListVersion) return;
+              this.availableModels = null;
+              new Notice(error instanceof Error ? error.message : tr.errorModelList);
+            } finally {
+              this.isLoadingModels = false;
+              this.display();
+            }
+          });
+      });
+  }
+
+  private invalidateModelList(): void {
+    this.availableModels = null;
+    // 이전 설정으로 보낸 요청과 열려 있던 자동완성 제안을 모두 무효화한다.
+    this.modelListVersion++;
+  }
+
+  private modelText(
+    containerEl: HTMLElement,
+    label: string,
+    description: string,
+    key: "bedrockModelId" | "bedrockRegion" | "bedrockProfile" | "bedrockBearerToken" |
+      "openaiModel" | "openaiBaseUrl" | "openaiApiKey" | "anthropicModel" | "anthropicApiKey" |
+      "geminiModel" | "geminiApiKey",
+    secret = false
+  ): void {
+    new Setting(containerEl).setName(label).setDesc(description).addText((text) => {
+      text.setValue(this.plugin.settings[key]).onChange(async (value) => {
+        this.plugin.settings[key] = value.trim();
+        this.invalidateModelList();
+        await this.plugin.saveSettings();
+      });
+      if (secret) this.addPasswordToggle(text.inputEl);
+    });
+  }
+
   /**
    * 구독 피드 설정 섹션 렌더링
    * YouTube Data API Key 입력 + 수동 채널 추가 UI
@@ -135,7 +325,7 @@ export class SettingsTab extends PluginSettingTab {
     const hasApiKey = this.plugin.settings.youtubeDataApiKey.trim().length > 0;
 
     // 구독 피드 섹션 헤더
-    containerEl.createEl("h3", { text: tr.subscriptionSectionHeader });
+    new Setting(containerEl).setName(tr.subscriptionSectionHeader).setHeading();
 
     // YouTube Data API Key 입력 필드 (눈 아이콘 토글로 마스킹/표시 전환)
     const apiKeySetting = new Setting(containerEl)
@@ -237,7 +427,7 @@ export class SettingsTab extends PluginSettingTab {
     tr: ReturnType<typeof t>
   ): void {
     // 채널 목록 레이블
-    containerEl.createEl("h4", { text: tr.subscriptionChannelsLabel });
+    new Setting(containerEl).setName(tr.subscriptionChannelsLabel).setHeading();
 
     // 각 모니터링 채널에 대해 UI 생성
     for (const channel of this.plugin.settings.monitoredChannels) {
