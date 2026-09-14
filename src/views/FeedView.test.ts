@@ -304,7 +304,7 @@ describe("FeedView", () => {
       // 실패한 영상은 오류 상태로 표시
       const failVideoStatus = videoItems[0].querySelector(".youtube-feed-status");
       expect(failVideoStatus).not.toBeNull();
-      expect(failVideoStatus!.textContent).toBe(tr.feedSummaryError);
+      expect(failVideoStatus!.textContent).toBe("요약 실패");
 
       // 두 번째 영상은 여전히 요약하기 버튼이 활성화 상태
       const okVideoBtn = videoItems[1].querySelector(

@@ -5,8 +5,7 @@
 // 옵시디언의 requestUrl API를 사용하여 CORS 제약 없이 호출
 // ============================================================
 
-import { requestUrl } from "obsidian";
-import type { RequestFn } from "./YouTubeSummaryApiClient";
+import { requestHttp, RequestFn } from "./http";
 import type {
   SubscriptionChannel,
   VideoItem,
@@ -35,47 +34,6 @@ export class YouTubeDataApiError extends Error {
 }
 
 /**
- * 옵시디언 requestUrl을 RequestFn 형태로 래핑하는 기본 구현
- */
-async function defaultRequestFn(options: {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body?: string;
-}): Promise<{ status: number; json: unknown }> {
-  try {
-    const response = await requestUrl({
-      url: options.url,
-      method: options.method,
-      headers: options.headers,
-      body: options.body,
-      contentType: options.headers["Content-Type"] ?? "application/json",
-    });
-    let json: unknown = null;
-    try {
-      json = JSON.parse(response.text);
-    } catch {
-      // JSON 파싱 실패 시 null 유지
-    }
-    return { status: response.status, json };
-  } catch (error: unknown) {
-    // requestUrl은 4xx/5xx 시 예외를 throw — status와 json 추출
-    const err = error as { status?: number; text?: string; json?: unknown };
-    if (err.status) {
-      let json: unknown = null;
-      try {
-        json = err.text ? JSON.parse(err.text) : err.json ?? null;
-      } catch {
-        json = err.json ?? null;
-      }
-      return { status: err.status, json };
-    }
-    // 네트워크 오류 등 예상치 못한 오류
-    throw error;
-  }
-}
-
-/**
  * YouTube Data API v3 클라이언트 클래스
  * subscriptions.list, playlistItems.list 엔드포인트를 호출
  */
@@ -89,7 +47,7 @@ export class YouTubeDataApiClient {
    */
   constructor(apiKey: string, requestFn?: RequestFn) {
     this.apiKey = apiKey;
-    this.requestFn = requestFn ?? defaultRequestFn;
+    this.requestFn = requestFn ?? requestHttp;
   }
 
   /**

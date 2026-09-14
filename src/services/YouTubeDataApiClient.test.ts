@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { YouTubeDataApiClient, YouTubeDataApiError } from "./YouTubeDataApiClient";
-import type { RequestFn } from "./YouTubeSummaryApiClient";
+import type { RequestFn } from "./http";
 
 /** 모킹된 requestFn 생성 헬퍼 */
 function createMockRequestFn(status: number, json: unknown): RequestFn {

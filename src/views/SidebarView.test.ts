@@ -6,20 +6,12 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { WorkspaceLeaf } from "obsidian";
+import { App, WorkspaceLeaf } from "obsidian";
 import { SidebarView, VIEW_TYPE_YOUTUBE_SUMMARIZER } from "./SidebarView";
 import { SummarizerService } from "../services/SummarizerService";
+import { SubscriptionManager } from "../services/SubscriptionManager";
 import { PluginSettings, DEFAULT_SETTINGS, SummaryStage } from "../models/types";
 import { t } from "../i18n";
-
-// FeedView 모킹 - 실제 FeedView 인스턴스 생성 방지
-vi.mock("./FeedView", () => ({
-  FeedView: vi.fn().mockImplementation(() => ({
-    render: vi.fn(),
-    loadFeed: vi.fn(),
-    destroy: vi.fn(),
-  })),
-}));
 
 const tr = t("en");
 
@@ -90,9 +82,11 @@ describe("SidebarView", () => {
       expect(button.textContent).toBe(tr.summarizeButton);
     });
 
-    it("상태 메시지 영역이 렌더링된다", () => {
+    it("상태 메시지 영역이 탭 위 공통 영역에 렌더링된다", () => {
       const status = view.contentEl.querySelector(".youtube-summarizer-status");
       expect(status).not.toBeNull();
+      expect(status!.parentElement).toBe(view.contentEl);
+      expect(status!.nextElementSibling).toBe(view.contentEl.querySelector(".youtube-summarizer-tabs"));
     });
 
     it("스크립트 textarea가 렌더링된다", () => {
@@ -243,7 +237,7 @@ describe("SidebarView", () => {
       mockSummarizerService = {
         summarize: vi.fn(),
       } as unknown as SummarizerService;
-      mockSettings = { ...DEFAULT_SETTINGS, apiKey: "test-key" };
+      mockSettings = { ...DEFAULT_SETTINGS, bedrockBearerToken: "test-key" };
       view.setDependencies(mockSummarizerService, () => mockSettings);
       await view.onOpen();
     });
@@ -261,7 +255,7 @@ describe("SidebarView", () => {
       // 새 시그니처: (videoUrl, targetLanguage, onProgress, manualTranscript?)
       expect(mockSummarizerService.summarize).toHaveBeenCalledWith(
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        "en",
+        "ko",
         expect.any(Function),
         undefined
       );
@@ -359,7 +353,7 @@ describe("SidebarView", () => {
 
     beforeEach(async () => {
       mockSummarizerService = { summarize: vi.fn() } as unknown as SummarizerService;
-      view.setDependencies(mockSummarizerService, () => ({ ...DEFAULT_SETTINGS, apiKey: "test-key" }));
+      view.setDependencies(mockSummarizerService, () => ({ ...DEFAULT_SETTINGS, bedrockBearerToken: "test-key" }));
       await view.onOpen();
     });
 
@@ -414,7 +408,9 @@ describe("SidebarView", () => {
 
       expect(mockSummarizerService.summarize).toHaveBeenCalledTimes(3);
       const status = view.contentEl.querySelector(".youtube-summarizer-status") as HTMLElement;
-      expect(status.classList.contains("success")).toBe(true);
+      expect(status.classList.contains("error")).toBe(true);
+      expect(status.textContent).toContain("실패");
+      expect(textarea.value).toBe("https://youtu.be/dQw4w9WgXcQ");
     });
   });
 
@@ -538,6 +534,130 @@ describe("SidebarView", () => {
       // URL 입력창이 없음 (피드 탭이 활성 상태이므로)
       const input = newView.contentEl.querySelector(".youtube-summarizer-url-input");
       expect(input).toBeNull();
+    });
+  });
+
+  describe("탭 전환 중 요약 상태 보존", () => {
+    const url = "https://youtu.be/dQw4w9WgXcQ";
+    const settings = { ...DEFAULT_SETTINGS, bedrockBearerToken: "test-key" };
+    let summarize: ReturnType<typeof vi.fn>;
+    let complete: () => void;
+    let fail: (error: Error) => void;
+
+    beforeEach(async () => {
+      const pending = new Promise<void>((resolve, reject) => {
+        complete = resolve;
+        fail = reject;
+      });
+      summarize = vi.fn().mockReturnValue(pending);
+      view.setDependencies({ summarize } as unknown as SummarizerService, () => settings);
+      await view.onOpen();
+    });
+
+    function clickTab(tab: "url" | "feed"): void {
+      view.contentEl.querySelector<HTMLElement>(`[data-tab="${tab}"]`)!.click();
+    }
+
+    it.each(["single", "bulk"] as const)(
+      "%s 요약 중 탭을 왕복해도 입력값, 펼침 상태와 진행 표시를 유지한다",
+      async (mode) => {
+        view.contentEl.querySelector("input")!.value = url;
+        const [script, bulk] = Array.from(view.contentEl.querySelectorAll("textarea"));
+        script.value = "직접 입력한 자막";
+        bulk.value = url;
+        const buttonIndex = mode === "single" ? 0 : 1;
+        view.contentEl.querySelectorAll("details")[buttonIndex].open = true;
+        view.contentEl.querySelectorAll("button")[buttonIndex].click();
+
+        clickTab("feed");
+        summarize.mock.calls[0][2](SummaryStage.SUMMARIZING);
+        const status = view.contentEl.querySelector(".youtube-summarizer-status")!;
+        expect(status).not.toBeNull();
+        expect(status.textContent).toContain(tr.stageSummarizing);
+        expect(status.classList.contains("loading")).toBe(true);
+        clickTab("url");
+
+        expect(view.contentEl.querySelector("input")!.value).toBe(url);
+        expect(Array.from(view.contentEl.querySelectorAll("textarea"), el => el.value))
+          .toEqual(["직접 입력한 자막", url]);
+        expect(view.contentEl.querySelectorAll("details")[buttonIndex].open).toBe(true);
+        expect(view.contentEl.querySelector(".youtube-summarizer-status")).toBe(status);
+        const button = view.contentEl.querySelectorAll("button")[buttonIndex];
+        expect(button.disabled).toBe(true);
+        button.click();
+        expect(summarize).toHaveBeenCalledTimes(1);
+
+        complete();
+        await vi.waitFor(() => expect(button.disabled).toBe(false));
+      }
+    );
+
+    it.each(["success", "error"] as const)(
+      "다른 탭에서 요약이 끝나도 복귀하면 결과를 표시한다 (%s)",
+      async (outcome) => {
+        view.contentEl.querySelector("input")!.value = url;
+        const button = view.contentEl.querySelector("button")!;
+        button.click();
+        clickTab("feed");
+
+        if (outcome === "success") complete();
+        else fail(new Error("모델 호출 실패"));
+        await vi.waitFor(() => expect(button.disabled).toBe(false));
+
+        const status = view.contentEl.querySelector(".youtube-summarizer-status")!;
+        expect(status).not.toBeNull();
+        expect(status.classList.contains(outcome)).toBe(true);
+        expect(status.textContent).toBe(outcome === "success" ? tr.stageComplete : "모델 호출 실패");
+        clickTab("url");
+        expect(view.contentEl.querySelector(".youtube-summarizer-status")).toBe(status);
+        expect(view.contentEl.querySelector("input")!.value).toBe(outcome === "success" ? "" : url);
+        expect(view.contentEl.querySelector("button")!.disabled).toBe(false);
+      }
+    );
+
+    it("구독 피드의 진행 중 상태와 다른 탭에서 완료된 결과도 유지한다", async () => {
+      const channel = { channelId: "UC_test_1", channelTitle: "테스트 채널", thumbnailUrl: "" };
+      const fetchNewVideos = vi.fn().mockResolvedValue([{
+        channelId: channel.channelId,
+        channelTitle: channel.channelTitle,
+        videos: [{
+          videoId: "dQw4w9WgXcQ",
+          title: "테스트 영상",
+          ...channel,
+          publishedAt: "2024-06-15T10:30:00Z",
+        }],
+      }]);
+      const markSummarized = vi.fn().mockResolvedValue(undefined);
+      view.setDependencies(
+        { summarize } as unknown as SummarizerService,
+        () => ({ ...settings, monitoredChannels: [channel] }),
+        {
+          subscriptionManager: { fetchNewVideos } as unknown as SubscriptionManager,
+          app: new App(),
+          markSummarized,
+        }
+      );
+      clickTab("feed");
+      await vi.waitFor(() => expect(view.contentEl.querySelector(".youtube-feed-summarize-btn")).not.toBeNull());
+      view.contentEl.querySelector<HTMLButtonElement>(".youtube-feed-summarize-btn")!.click();
+
+      clickTab("url");
+      clickTab("feed");
+      await vi.waitFor(() => expect(view.contentEl.querySelector(".youtube-feed-summarize-btn")).not.toBeNull());
+      const button = view.contentEl.querySelector<HTMLButtonElement>(".youtube-feed-summarize-btn")!;
+      expect(button.disabled).toBe(true);
+      expect(view.contentEl.querySelector(".youtube-feed-status")!.textContent).toBe(tr.feedSummarizing);
+      button.click();
+      expect(summarize).toHaveBeenCalledTimes(1);
+
+      clickTab("url");
+      complete();
+      await vi.waitFor(() => expect(markSummarized).toHaveBeenCalledWith("dQw4w9WgXcQ"));
+      clickTab("feed");
+      expect(view.contentEl.querySelector(".youtube-feed-status.completed")!.textContent).toBe(tr.feedSummarized);
+      expect(fetchNewVideos).toHaveBeenCalledTimes(1);
+      await view.onClose();
+      expect(view.contentEl.childElementCount).toBe(0);
     });
   });
 });

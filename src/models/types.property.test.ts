@@ -54,7 +54,7 @@ const pluginSettingsArbitrary: fc.Arbitrary<PluginSettings> = fc.record({
   subscriptionSaveFolderPath: fc.string({ minLength: 0, maxLength: 200 }),
   videosPerChannel: fc.integer({ min: 1, max: 10 }),
   summarizedVideoIds: fc.array(fc.string({ minLength: 1, maxLength: 20 }), { maxLength: 50 }),
-});
+}).map((values) => ({ ...DEFAULT_SETTINGS, ...values }));
 
 describe("Feature: youtube-subscription-feed, Property 1: 설정 라운드트립", () => {
   /**
@@ -96,7 +96,7 @@ describe("Feature: youtube-subscription-feed, Property 1: 설정 라운드트립
    */
   it("부분 설정을 병합하면 누락된 필드는 기본값으로 채워진다", () => {
     // 부분 설정 생성기: 일부 필드만 포함
-    const partialSettingsArbitrary = fc.record(
+    const partialSettingsArbitrary: fc.Arbitrary<Partial<PluginSettings>> = fc.record(
       {
         language: languageArbitrary,
         saveFolderPath: fc.string({ minLength: 0, maxLength: 200 }),

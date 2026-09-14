@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { YouTubeDataApiClient, YouTubeDataApiError } from "./YouTubeDataApiClient";
-import type { RequestFn } from "./YouTubeSummaryApiClient";
+import type { RequestFn } from "./http";
 
 describe("Feature: youtube-subscription-feed, Property: fetchChannelInfo 응답 파싱", () => {
   /**

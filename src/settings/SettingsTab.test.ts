@@ -5,25 +5,47 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { App } from "obsidian";
+import { App, Notice } from "obsidian";
 import {
   SettingsTab,
   YouTubeSummarizerPluginInterface,
 } from "./SettingsTab";
 import { DEFAULT_SETTINGS, SubscriptionChannel } from "../models/types";
+import { t } from "../i18n";
+import { listAvailableModels } from "../services/AiModelClient";
 
+vi.mock("../services/AiModelClient", () => ({ listAvailableModels: vi.fn() }));
+
+const tr = t("en");
 // onChange 콜백을 캡처하기 위한 저장소
 const capturedTextCallbacks: Array<(value: string) => Promise<void>> = [];
 const capturedDropdownCallbacks: Array<(value: string) => Promise<void>> = [];
 const capturedButtonCallbacks: Array<() => Promise<void>> = [];
 const capturedSliderCallbacks: Array<(value: number) => Promise<void>> = [];
+const textByName = new Map<string, (value: string) => Promise<void>>();
+const dropdownByName = new Map<string, (value: string) => Promise<void>>();
+const suggestionsByName = new Map<string, {
+  getSuggestions(input: string): string[];
+  selectSuggestion(id: string): void;
+}>();
 
 // Setting 클래스를 모킹하여 콜백 캡처
 vi.mock("obsidian", async (importOriginal) => {
   const original = await importOriginal<typeof import("obsidian")>();
 
+  class CapturedInputSuggest extends original.AbstractInputSuggest<string> {
+    constructor(app: App, inputEl: HTMLInputElement) {
+      super(app, inputEl);
+      suggestionsByName.set(inputEl.dataset.settingName!, this);
+    }
+    getSuggestions(): string[] { return []; }
+    renderSuggestion(): void {}
+    selectSuggestion(): void {}
+  }
+
   class MockSetting {
     descEl: HTMLElement;
+    name = "";
     constructor(containerEl: HTMLElement) {
       if (typeof document !== "undefined") {
         const el = document.createElement("div");
@@ -34,18 +56,22 @@ vi.mock("obsidian", async (importOriginal) => {
         this.descEl = {} as HTMLElement;
       }
     }
-    setName(): MockSetting { return this; }
+    setName(name: string): MockSetting { this.name = name; return this; }
     setDesc(): MockSetting { return this; }
+    setHeading(): MockSetting { return this; }
     addText(cb: (text: any) => any): MockSetting {
       const text = {
         setPlaceholder: () => text,
         setValue: () => text,
         onChange: (fn: (value: string) => Promise<void>) => {
           capturedTextCallbacks.push(fn);
+          textByName.set(this.name, fn);
           return text;
         },
         inputEl: document.createElement("input"),
       };
+      text.inputEl.dataset.settingName = this.name;
+      text.inputEl.trigger = vi.fn();
       cb(text);
       return this;
     }
@@ -55,6 +81,7 @@ vi.mock("obsidian", async (importOriginal) => {
         setValue: () => dropdown,
         onChange: (fn: (value: string) => Promise<void>) => {
           capturedDropdownCallbacks.push(fn);
+          dropdownByName.set(this.name, fn);
           return dropdown;
         },
       };
@@ -91,6 +118,8 @@ vi.mock("obsidian", async (importOriginal) => {
   return {
     ...original,
     Setting: MockSetting,
+    AbstractInputSuggest: CapturedInputSuggest,
+    Notice: vi.fn(),
   };
 });
 
@@ -104,6 +133,11 @@ describe("SettingsTab", () => {
     capturedDropdownCallbacks.length = 0;
     capturedButtonCallbacks.length = 0;
     capturedSliderCallbacks.length = 0;
+    textByName.clear();
+    dropdownByName.clear();
+    suggestionsByName.clear();
+    vi.mocked(listAvailableModels).mockReset();
+    vi.mocked(Notice).mockClear();
 
     app = new App();
     mockPlugin = {
@@ -114,28 +148,32 @@ describe("SettingsTab", () => {
   });
 
   describe("display() - 설정 UI 렌더링", () => {
-    it("기본 설정 항목이 올바르게 렌더링된다 (h2 + p + 언어 + API Key + 저장폴더 + h3 + YouTube Data API Key = 7개)", () => {
+    it("서버 키 대신 모델 제공자·Bedrock 인증 설정을 렌더링한다", () => {
       settingsTab.display();
-      const settingEls = settingsTab.containerEl.children;
-      expect(settingEls.length).toBe(7);
+      expect(dropdownByName.has(tr.providerLabel)).toBe(true);
+      expect(textByName.has(tr.bedrockTokenLabel)).toBe(true);
+      // 제거된 요약 서버 필드가 다시 생기지 않는지 확인 (i18n 키도 삭제됨)
+      expect(textByName.has("Summary Server API Key")).toBe(false);
     });
 
     it("display()를 다시 호출하면 기존 내용이 비워지고 새로 렌더링된다", () => {
       settingsTab.display();
+      const count = settingsTab.containerEl.children.length;
       settingsTab.display();
       const settingEls = settingsTab.containerEl.children;
-      expect(settingEls.length).toBe(7);
+      expect(settingEls.length).toBe(count);
     });
 
-    it("YouTube Data API Key가 비어있으면 텍스트 입력은 3개만 존재한다", () => {
+    it("YouTube Data API Key가 비어있으면 채널 추가 입력을 표시하지 않는다", () => {
       settingsTab.display();
-      // API Key(0) + 저장폴더(1) + YouTube Data API Key(2) = 3개
-      expect(capturedTextCallbacks.length).toBe(3);
+      expect(textByName.has(tr.youtubeDataApiKeyLabel)).toBe(true);
+      expect(textByName.has(tr.addChannelLabel)).toBe(false);
     });
 
-    it("YouTube Data API Key가 비어있으면 버튼 콜백이 캡처되지 않는다", () => {
+    it("YouTube Data API Key가 비어있으면 채널 추가 버튼이 캡처되지 않는다", () => {
       settingsTab.display();
-      expect(capturedButtonCallbacks.length).toBe(0);
+      // 모델 불러오기 버튼 1개만 존재
+      expect(capturedButtonCallbacks.length).toBe(1);
     });
   });
 
@@ -158,21 +196,122 @@ describe("SettingsTab", () => {
     });
 
     it("언어 변경 시 설정이 저장된다", async () => {
-      await capturedDropdownCallbacks[0]("ko");
+      await dropdownByName.get(tr.languageLabel)!("ko");
       expect(mockPlugin.settings.language).toBe("ko");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
 
     it("API Key 변경 시 설정이 저장된다", async () => {
-      await capturedTextCallbacks[0]("test-api-key-123");
-      expect(mockPlugin.settings.apiKey).toBe("test-api-key-123");
+      await textByName.get(tr.bedrockTokenLabel)!("test-api-key-123");
+      expect(mockPlugin.settings.bedrockBearerToken).toBe("test-api-key-123");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
 
     it("저장 폴더 경로 변경 시 설정이 저장된다", async () => {
-      await capturedTextCallbacks[1]("My Custom Folder");
+      await textByName.get(tr.saveFolderLabel)!("My Custom Folder");
       expect(mockPlugin.settings.saveFolderPath).toBe("My Custom Folder");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
+    });
+  });
+
+  describe("모델·인증 방식 전환", () => {
+    it("제공자별 API 키와 모델을 따로 보존한다", async () => {
+      settingsTab.display();
+      await textByName.get(tr.bedrockTokenLabel)!("bedrock-token");
+      await dropdownByName.get(tr.providerLabel)!("openai");
+      await textByName.get(tr.modelApiKeyLabel)!("openai-key");
+      await textByName.get(tr.modelLabel)!("openai-model");
+      await dropdownByName.get(tr.providerLabel)!("gemini");
+      await textByName.get(tr.modelApiKeyLabel)!("gemini-key");
+      await textByName.get(tr.modelLabel)!("gemini-model");
+      await dropdownByName.get(tr.providerLabel)!("openai");
+      expect(mockPlugin.settings.openaiApiKey).toBe("openai-key");
+      expect(mockPlugin.settings.openaiModel).toBe("openai-model");
+      expect(mockPlugin.settings.geminiApiKey).toBe("gemini-key");
+      expect(mockPlugin.settings.geminiModel).toBe("gemini-model");
+      expect(mockPlugin.settings.bedrockBearerToken).toBe("bedrock-token");
+    });
+
+    it("SSO 프로필을 저장하고 토큰은 별도로 보존한다", async () => {
+      settingsTab.display();
+      await textByName.get(tr.bedrockTokenLabel)!("token");
+      await dropdownByName.get(tr.bedrockAuthLabel)!("profile");
+      await textByName.get(tr.bedrockProfileLabel)!("my-sso");
+      expect(mockPlugin.settings.bedrockAuthMode).toBe("profile");
+      expect(mockPlugin.settings.bedrockProfile).toBe("my-sso");
+      expect(mockPlugin.settings.bedrockBearerToken).toBe("token");
+    });
+
+    it("실행 도중 설정 객체가 교체되어도 최신 객체에 UI·요약 언어를 저장한다", async () => {
+      settingsTab.display();
+      mockPlugin.settings = { ...mockPlugin.settings, summarizedVideoIds: ["done"] };
+      await dropdownByName.get(tr.summaryLanguageLabel)!("en");
+      await dropdownByName.get(tr.providerLabel)!("anthropic");
+      expect(mockPlugin.settings.summaryLanguage).toBe("en");
+      expect(mockPlugin.settings.aiProvider).toBe("anthropic");
+      expect(mockPlugin.settings.summarizedVideoIds).toEqual(["done"]);
+    });
+
+    it("출력 한도의 비정상 입력은 저장하지 않는다", async () => {
+      settingsTab.display();
+      for (const value of ["", "-1", "NaN", "1.5", "128001"]) {
+        await textByName.get(tr.maxOutputTokensLabel)!(value);
+      }
+      expect(mockPlugin.settings.maxOutputTokens).toBe(DEFAULT_SETTINGS.maxOutputTokens);
+      expect(mockPlugin.saveSettings).not.toHaveBeenCalled();
+      await textByName.get(tr.maxOutputTokensLabel)!("64000");
+      expect(mockPlugin.settings.maxOutputTokens).toBe(64000);
+    });
+  });
+
+  describe("모델 목록의 설정 변경 처리", () => {
+    it.each(["success", "error"] as const)("제공자 전환 후 도착한 이전 조회 결과를 무시한다 (%s)", async (outcome) => {
+      let resolve!: (models: string[]) => void;
+      let reject!: (error: Error) => void;
+      vi.mocked(listAvailableModels).mockReturnValueOnce(new Promise((done, fail) => {
+        resolve = done;
+        reject = fail;
+      }));
+      mockPlugin.settings.aiProvider = "openai";
+      settingsTab.display();
+      const loading = capturedButtonCallbacks[0]();
+      await dropdownByName.get(tr.providerLabel)!("bedrock");
+      if (outcome === "success") resolve(["gpt-4.1-mini"]);
+      else reject(new Error("이전 제공자의 오류"));
+      await loading;
+
+      expect(suggestionsByName.get(tr.modelLabel)!.getSuggestions("")).toEqual([]);
+      expect(Notice).not.toHaveBeenCalled();
+      expect(mockPlugin.settings.bedrockModelId).toBe(DEFAULT_SETTINGS.bedrockModelId);
+
+      // 이전 요청이 끝나면 새 제공자의 목록 조회와 선택은 정상 동작해야 한다.
+      vi.mocked(listAvailableModels).mockResolvedValueOnce(["new-bedrock-model"]);
+      await capturedButtonCallbacks[capturedButtonCallbacks.length - 1]();
+      const suggest = suggestionsByName.get(tr.modelLabel)!;
+      expect(suggest.getSuggestions("")).toEqual(["new-bedrock-model"]);
+      suggest.selectSuggestion("new-bedrock-model");
+      expect(mockPlugin.settings.bedrockModelId).toBe("new-bedrock-model");
+    });
+
+    it("주소·인증 정보 변경 시 이미 표시한 제안과 진행 중인 조회를 모두 무효화한다", async () => {
+      mockPlugin.settings.aiProvider = "openai";
+      settingsTab.display();
+      vi.mocked(listAvailableModels).mockResolvedValueOnce(["old-model"]);
+      await capturedButtonCallbacks[0]();
+      const oldSuggest = suggestionsByName.get(tr.modelLabel)!;
+      expect(oldSuggest.getSuggestions("")).toEqual(["old-model"]);
+      await textByName.get(tr.openaiBaseUrlLabel)!("http://localhost:11434/v1");
+      expect(oldSuggest.getSuggestions("")).toEqual([]);
+      oldSuggest.selectSuggestion("old-model");
+      expect(mockPlugin.settings.openaiModel).toBe(DEFAULT_SETTINGS.openaiModel);
+
+      let resolve!: (models: string[]) => void;
+      vi.mocked(listAvailableModels).mockReturnValueOnce(new Promise(done => { resolve = done; }));
+      const loading = capturedButtonCallbacks[capturedButtonCallbacks.length - 1]();
+      await textByName.get(tr.modelApiKeyLabel)!("changed-key");
+      resolve(["stale-model"]);
+      await loading;
+      expect(suggestionsByName.get(tr.modelLabel)!.getSuggestions("")).toEqual([]);
     });
   });
 
@@ -193,14 +332,14 @@ describe("SettingsTab", () => {
 
     it("YouTube Data API Key가 있으면 채널 추가 버튼이 표시된다", () => {
       settingsTab.display();
-      // 채널 추가 버튼 1개
-      expect(capturedButtonCallbacks.length).toBe(1);
+      // 모델 불러오기 버튼 1개 + 채널 추가 버튼 1개
+      expect(capturedButtonCallbacks.length).toBe(2);
     });
 
     it("YouTube Data API Key가 있으면 채널 ID 입력 + 구독 저장폴더가 추가된다", () => {
       settingsTab.display();
-      // API Key(0) + 저장폴더(1) + YouTube Data API Key(2) + 채널 ID 입력(3) + 구독 저장폴더(4) = 5개
-      expect(capturedTextCallbacks.length).toBe(5);
+      expect(textByName.has(tr.addChannelLabel)).toBe(true);
+      expect(textByName.has(tr.subscriptionSaveFolderLabel)).toBe(true);
     });
   });
 
@@ -336,15 +475,13 @@ describe("SettingsTab", () => {
 
     it("모니터링 중인 채널에 삭제 버튼과 저장 폴더 입력 필드가 표시된다", () => {
       settingsTab.display();
-      // 채널 추가 버튼 1개 + 삭제 버튼 1개 = 2개
-      expect(capturedButtonCallbacks.length).toBe(2);
+      // 모델 불러오기 1개 + 채널 추가 1개 + 삭제 버튼 1개 = 3개
+      expect(capturedButtonCallbacks.length).toBe(3);
     });
 
     it("채널별 저장 폴더 텍스트 입력 변경 시 saveFolderPath가 업데이트된다", async () => {
       settingsTab.display();
-      // 텍스트 입력 순서: API Key(0) + 저장폴더(1) + YouTube Data API Key(2) + 채널 ID 입력(3) + 채널 그룹(4) + 채널별 저장폴더(5) + 구독 저장폴더(6)
-      expect(capturedTextCallbacks.length).toBe(7);
-      await capturedTextCallbacks[5]("Custom Channel Folder");
+      await textByName.get(tr.channelSaveFolderLabel)!("Custom Channel Folder");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
         (ch) => ch.channelId === "UC_channel_1"
@@ -355,8 +492,7 @@ describe("SettingsTab", () => {
 
     it("채널 그룹 텍스트 입력 변경 시 group이 업데이트된다", async () => {
       settingsTab.display();
-      // 채널 그룹 입력은 인덱스 4
-      await capturedTextCallbacks[4]("주식");
+      await textByName.get(mockPlugin.settings.monitoredChannels[0].channelTitle)!("주식");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
         (ch) => ch.channelId === "UC_channel_1"
@@ -368,7 +504,7 @@ describe("SettingsTab", () => {
     it("채널 그룹을 공백으로 비우면 group이 undefined가 된다", async () => {
       mockPlugin.settings.monitoredChannels[0].group = "주식";
       settingsTab.display();
-      await capturedTextCallbacks[4]("   ");
+      await textByName.get(mockPlugin.settings.monitoredChannels[0].channelTitle)!("   ");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
         (ch) => ch.channelId === "UC_channel_1"

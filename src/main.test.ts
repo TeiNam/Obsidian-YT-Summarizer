@@ -1,9 +1,9 @@
 // ============================================================
 // YouTubeSummarizerPlugin 단위 테스트
-// API 마이그레이션 후: YouTubeSummaryApiClient 기반 서비스 팩토리 검증
+// 로컬 요약 설정과 구독 데이터 보존 검증
 // ============================================================
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import YouTubeSummarizerPlugin from "./main";
 import { DEFAULT_SETTINGS } from "./models/types";
 import { VIEW_TYPE_YOUTUBE_SUMMARIZER } from "./views/SidebarView";
@@ -54,16 +54,46 @@ describe("YouTubeSummarizerPlugin", () => {
       vi.spyOn(plugin, "loadData").mockResolvedValue(savedData);
       await plugin.loadSettings();
       expect(plugin.settings.apiKey).toBe("saved-api-key");
+      expect(plugin.settings.bedrockBearerToken).toBe("");
+      expect(plugin.settings.openaiApiKey).toBe("");
       expect(plugin.settings.saveFolderPath).toBe(DEFAULT_SETTINGS.saveFolderPath);
     });
 
-    it("AWS 관련 필드가 기본 설정에 존재하지 않는다", async () => {
+    it("로컬 요약 기본값은 Bedrock Bearer이며 기존 AWS 액세스 키를 요구하지 않는다", async () => {
       vi.spyOn(plugin, "loadData").mockResolvedValue(null);
       await plugin.loadSettings();
-      expect((plugin.settings as any).awsRegion).toBeUndefined();
-      expect((plugin.settings as any).bedrockModelId).toBeUndefined();
+      expect(plugin.settings.aiProvider).toBe("bedrock");
+      expect(plugin.settings.bedrockAuthMode).toBe("bearer");
+      expect(plugin.settings.bedrockModelId).toBe(DEFAULT_SETTINGS.bedrockModelId);
       expect((plugin.settings as any).awsAccessKeyId).toBeUndefined();
       expect((plugin.settings as any).awsSecretAccessKey).toBeUndefined();
+    });
+  });
+
+  describe("loadSettings - UI 언어 자동 감지", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("첫 실행 시 시스템 언어가 한국어면 UI 언어를 ko로 초기화한다", async () => {
+      vi.stubGlobal("navigator", { language: "ko-KR" });
+      vi.spyOn(plugin, "loadData").mockResolvedValue(null);
+      await plugin.loadSettings();
+      expect(plugin.settings.language).toBe("ko");
+    });
+
+    it("첫 실행 시 시스템 언어가 한국어가 아니면 en을 사용한다", async () => {
+      vi.stubGlobal("navigator", { language: "ja-JP" });
+      vi.spyOn(plugin, "loadData").mockResolvedValue(null);
+      await plugin.loadSettings();
+      expect(plugin.settings.language).toBe("en");
+    });
+
+    it("저장된 UI 언어는 시스템 언어와 무관하게 유지된다", async () => {
+      vi.stubGlobal("navigator", { language: "ko-KR" });
+      vi.spyOn(plugin, "loadData").mockResolvedValue({ language: "en" });
+      await plugin.loadSettings();
+      expect(plugin.settings.language).toBe("en");
     });
   });
 

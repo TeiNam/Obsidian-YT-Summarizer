@@ -78,6 +78,10 @@
   transition: color 0.15s ease, background 0.15s ease;
 }
 
+.youtube-summarizer-status:empty {
+  display: none;
+}
+
 /* 메시지가 있을 때만 칩 형태로 보이도록 상태 클래스에서만 패딩/배경 부여 */
 .youtube-summarizer-status.loading,
 .youtube-summarizer-status.error,

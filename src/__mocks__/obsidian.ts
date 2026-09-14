@@ -7,10 +7,16 @@ export function requestUrl(_options: unknown): Promise<{ text: string; status: n
   return Promise.resolve({ text: "", status: 200, json: {} });
 }
 
+export const Platform = { isDesktopApp: true, isMobileApp: false };
+
 /**
  * addIcon 모킹 - 커스텀 아이콘 등록
  */
 export function addIcon(_iconId: string, _svgContent: string): void {}
+
+export function setIcon(el: HTMLElement, iconId: string): void {
+  el.setAttribute?.("data-icon", iconId);
+}
 
 /**
  * TFile 모킹 - 옵시디언 파일 객체
@@ -344,6 +350,9 @@ export class Setting {
   setDesc(_desc: string): this {
     return this;
   }
+  setHeading(): this {
+    return this;
+  }
   addText(cb: (text: any) => any): this {
     const text = {
       setPlaceholder: () => text,
@@ -424,4 +433,3 @@ export class Setting {
     return this;
   }
 }
-

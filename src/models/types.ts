@@ -1,22 +1,72 @@
 // ============================================================
 // Obsidian YouTube Summarizer - 타입 및 인터페이스 정의
-// API 마이그레이션 후 구조: AWS 관련 제거, YouTube Summary API 타입 추가
+// 자막 수집과 AI 모델 직접 호출에 사용하는 설정
 // ============================================================
 
 import { Language } from "../i18n";
 
+export type AiProvider = "bedrock" | "openai" | "anthropic" | "gemini";
+
+/**
+ * 요약(타겟) 언어 목록 — 주요 20개 언어
+ * code는 자막 선호 언어 매칭, english는 프롬프트 지시, label은 설정 UI 표기에 사용
+ */
+export const SUMMARY_LANGUAGES = [
+  { code: "ko", label: "한국어", english: "Korean" },
+  { code: "en", label: "English", english: "English" },
+  { code: "ja", label: "日本語", english: "Japanese" },
+  { code: "zh-CN", label: "简体中文", english: "Simplified Chinese" },
+  { code: "zh-TW", label: "繁體中文", english: "Traditional Chinese" },
+  { code: "es", label: "Español", english: "Spanish" },
+  { code: "fr", label: "Français", english: "French" },
+  { code: "de", label: "Deutsch", english: "German" },
+  { code: "it", label: "Italiano", english: "Italian" },
+  { code: "pt", label: "Português", english: "Portuguese" },
+  { code: "ru", label: "Русский", english: "Russian" },
+  { code: "ar", label: "العربية", english: "Arabic" },
+  { code: "hi", label: "हिन्दी", english: "Hindi" },
+  { code: "id", label: "Bahasa Indonesia", english: "Indonesian" },
+  { code: "vi", label: "Tiếng Việt", english: "Vietnamese" },
+  { code: "th", label: "ไทย", english: "Thai" },
+  { code: "tr", label: "Türkçe", english: "Turkish" },
+  { code: "pl", label: "Polski", english: "Polish" },
+  { code: "nl", label: "Nederlands", english: "Dutch" },
+  { code: "sv", label: "Svenska", english: "Swedish" },
+] as const;
+
+/** 요약 결과 언어 코드 */
+export type SummaryLanguage = (typeof SUMMARY_LANGUAGES)[number]["code"];
+
 /**
  * 플러그인 설정 인터페이스
- * API 마이그레이션 후 API Key 하나로 단순화
- * 구독 피드 관련 필드 추가
+ * 제공자별 인증값을 따로 보관하여 제공자 전환 시 다른 서비스로 키가 전송되지 않게 한다.
  */
 export interface PluginSettings {
   /** UI 표시 언어 */
   language: Language;
   /** 노트 저장 폴더 경로 */
   saveFolderPath: string;
-  /** YouTube Summary API 인증 키 */
+  /** 이전 버전으로 돌아갈 때를 위한 서버 키. 로컬 요약에는 사용하지 않는다. */
   apiKey: string;
+  /** 요약 결과 언어 (UI 언어와 별도) */
+  summaryLanguage: SummaryLanguage;
+  aiProvider: AiProvider;
+  bedrockAuthMode: "bearer" | "profile";
+  bedrockRegion: string;
+  bedrockModelId: string;
+  bedrockBearerToken: string;
+  bedrockProfile: string;
+  openaiBaseUrl: string;
+  openaiModel: string;
+  openaiApiKey: string;
+  anthropicModel: string;
+  anthropicApiKey: string;
+  geminiModel: string;
+  geminiApiKey: string;
+  /** 자막/번역문 입력 상한. 넘으면 뒷부분을 자르지 않고 중단한다. */
+  maxInputChars: number;
+  /** 호출당 출력 토큰 상한. 사용하는 모델의 출력 한도 이내로 설정한다. */
+  maxOutputTokens: number;
   /** YouTube Data API v3 인증 키 */
   youtubeDataApiKey: string;
 
@@ -47,19 +97,20 @@ export interface ValidationResult {
  * API 응답 결과를 노트로 변환하기 위한 데이터 구조
  */
 export interface NoteContent {
-  /** 영상 제목 (API 응답의 video_title) */
+  /** 노트의 섹션 제목 언어 (ko면 한국어, 그 외에는 영어 제목) */
+  language?: SummaryLanguage;
+  /** 영상 제목 */
   videoTitle: string;
   /** 원본 유튜브 URL */
   videoUrl: string;
   /** AI 생성 요약 내용 (마크다운) */
   summary: string;
-  /** 핵심 인사이트 배열 (API 응답의 key_points) */
+  /** 핵심 인사이트 배열 */
   keyPoints: string[];
 }
 
 /**
  * 요약 프로세스 진행 단계 열거형
- * API 작업 상태 흐름에 맞게 재정의
  * i18n 키로 사용되며, 실제 표시 텍스트는 t(lang) 함수로 변환
  */
 export enum SummaryStage {
@@ -79,47 +130,14 @@ export enum SummaryStage {
 export type ProgressCallback = (stage: string) => void;
 
 // ============================================================
-// YouTube Summary API 요청/응답 타입
+// 자막 수집 결과
 // ============================================================
 
-/** POST /summarize 요청 본문 */
-export interface SummarizeApiRequest {
-  url: string;
-  target_language: string;
-  /** 수동 입력 스크립트/자막 (제공 시 자동 추출 대신 사용) */
-  transcript?: string;
-}
-
-/** POST /summarize 응답 (202) */
-export interface SummarizeApiResponse {
-  task_id: string;
-  status: string;
-}
-
-/** GET /tasks/{task_id} 응답 */
-export interface TaskStatusResponse {
-  task_id: string;
-  status: "pending" | "extracting" | "translating" | "summarizing" | "completed" | "failed";
-  result: ApiResult | null;
-  error: ApiErrorDetail | null;
-}
-
-/** 완료 시 결과 객체 */
-export interface ApiResult {
-  video_title: string;
-  /** 원본 영상 업로드 날짜 (YYYY-MM-DD). 라이브 등 알 수 없으면 null */
-  upload_date: string | null;
-  original_language: string;
-  extraction_method: "subtitle" | "transcribe";
-  translated_text: string;
-  summary: string;
-  key_points: string[];
-}
-
-/** 오류 상세 */
-export interface ApiErrorDetail {
-  code: string;
-  message: string;
+export interface VideoTranscript {
+  title: string;
+  uploadDate?: string;
+  text: string;
+  language?: string;
 }
 
 /**
@@ -129,6 +147,22 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   language: "en",
   saveFolderPath: "YouTube Summaries",
   apiKey: "",
+  summaryLanguage: "ko",
+  aiProvider: "bedrock",
+  bedrockAuthMode: "bearer",
+  bedrockRegion: "us-east-1",
+  bedrockModelId: "us.anthropic.claude-sonnet-4-6",
+  bedrockBearerToken: "",
+  bedrockProfile: "default",
+  openaiBaseUrl: "https://api.openai.com/v1",
+  openaiModel: "gpt-4.1-mini",
+  openaiApiKey: "",
+  anthropicModel: "claude-sonnet-4-6",
+  anthropicApiKey: "",
+  geminiModel: "gemini-2.5-flash",
+  geminiApiKey: "",
+  maxInputChars: 200000,
+  maxOutputTokens: 65536,
   youtubeDataApiKey: "",
   monitoredChannels: [],
   subscriptionSaveFolderPath: "YouTube Subscriptions",

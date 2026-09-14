@@ -7,6 +7,7 @@
 import { ItemView, WorkspaceLeaf, Notice, App } from "obsidian";
 import { validateYouTubeUrl } from "../utils/YouTubeUrlValidator";
 import { SummarizerService } from "../services/SummarizerService";
+import { getAiConfigurationError } from "../services/AiModelClient";
 import { PluginSettings, SummaryStage } from "../models/types";
 import { t, Translations } from "../i18n";
 import { SubscriptionManager } from "../services/SubscriptionManager";
@@ -61,6 +62,8 @@ export class SidebarView extends ItemView {
   private tabContentEl!: HTMLElement;
   /** 탭 버튼 컨테이너 */
   private tabContainerEl!: HTMLElement;
+  /** 탭별 DOM을 보관해 입력값과 진행 중인 작업의 화면을 유지한다. */
+  private tabPanels: Partial<Record<"url" | "feed", HTMLElement>> = {};
 
   /** FeedView 인스턴스 (구독 피드 탭용) */
   private feedView: FeedView | null = null;
@@ -135,6 +138,12 @@ export class SidebarView extends ItemView {
     });
     titleEl.addClass("youtube-summarizer-title");
 
+    // 상태 메시지는 어느 탭에서도 볼 수 있도록 탭 위에 배치한다.
+    this.statusMessage = container.createDiv({
+      cls: "youtube-summarizer-status",
+    });
+    this.statusMessage.setAttribute("role", "status");
+
     // 탭 컨테이너 렌더링
     this.tabContainerEl = container.createDiv({
       cls: "youtube-summarizer-tabs",
@@ -177,15 +186,13 @@ export class SidebarView extends ItemView {
       this.feedView.destroy();
       this.feedView = null;
     }
+    this.tabPanels = {};
     this.contentEl.empty();
   }
 
   /**
-   * 탭 전환 메서드
-   * 1. activeTab 상태 업데이트
-   * 2. 탭 버튼의 active 클래스 토글
-   * 3. 탭 콘텐츠 영역 비우기
-   * 4. 해당 탭의 콘텐츠 렌더링
+   * 탭은 처음 열 때만 생성하고, 전환 시 보관한 DOM을 다시 표시한다.
+   * 비활성 탭의 요약 콜백도 같은 DOM을 갱신하므로 결과가 유지된다.
    */
   private switchTab(tab: "url" | "feed"): void {
     this.activeTab = tab;
@@ -203,28 +210,19 @@ export class SidebarView extends ItemView {
       }
     });
 
-    // 기존 FeedView 정리
-    if (this.feedView) {
-      this.feedView.destroy();
-      this.feedView = null;
+    let panel = this.tabPanels[tab];
+    if (!panel) {
+      panel = this.tabContentEl.createDiv();
+      this.tabPanels[tab] = panel;
+      if (tab === "url") this.renderUrlTab(panel);
+      else this.renderFeedTab(panel);
     }
-
-    // 탭 콘텐츠 영역 비우기
-    while (this.tabContentEl.firstChild) {
-      this.tabContentEl.removeChild(this.tabContentEl.firstChild);
-    }
-
-    // 해당 탭의 콘텐츠 렌더링
-    if (tab === "url") {
-      this.renderUrlTab(this.tabContentEl);
-    } else {
-      this.renderFeedTab(this.tabContentEl);
-    }
+    this.tabContentEl.replaceChildren(panel);
   }
 
   /**
    * URL 요약 탭 렌더링
-   * 기존 onOpen()의 URL 입력 + 요약 버튼 + 상태 메시지 UI
+   * URL 입력과 단일/일괄 요약 폼 생성
    */
   private renderUrlTab(container: HTMLElement): void {
     const tr = this.tr;
@@ -298,11 +296,6 @@ export class SidebarView extends ItemView {
       text: tr.bulkHint,
       cls: "youtube-summarizer-script-hint",
     });
-
-    // 상태 메시지 영역
-    this.statusMessage = container.createDiv({
-      cls: "youtube-summarizer-status",
-    });
   }
 
   /**
@@ -334,7 +327,7 @@ export class SidebarView extends ItemView {
 
   /**
    * 요약 버튼 클릭 시 실행되는 핸들러
-   * URL 검증 → API Key 검증 → SummarizerService.summarize() 호출
+   * URL 검증 → 모델 설정 검증 → SummarizerService.summarize() 호출
    */
   private async handleSummarize(): Promise<void> {
     if (this.isProcessing) return;
@@ -357,9 +350,9 @@ export class SidebarView extends ItemView {
 
     const settings = this.getSettings();
 
-    // API Key 미설정 사전 검증
-    if (!settings.apiKey) {
-      this.showError(tr.errorMissingApiKey);
+    const configurationError = getAiConfigurationError(settings);
+    if (configurationError) {
+      this.showError(configurationError);
       return;
     }
 
@@ -372,10 +365,9 @@ export class SidebarView extends ItemView {
       // 스크립트 입력값 가져오기
       const manualTranscript = this.scriptTextarea?.value?.trim() || undefined;
 
-      // API 시그니처: (videoUrl, targetLanguage, onProgress, manualTranscript?)
       await summarizerService.summarize(
         url,
-        settings.language,
+        settings.summaryLanguage,
         (stage: string) => {
           this.setLoading(true, this.resolveStageText(stage));
         },
@@ -423,13 +415,16 @@ export class SidebarView extends ItemView {
     }
 
     const settings = this.getSettings();
-    if (!settings.apiKey) {
-      this.showError(tr.errorMissingApiKey);
+    const configurationError = getAiConfigurationError(settings);
+    if (configurationError) {
+      this.showError(configurationError);
       return;
     }
 
     let ok = 0;
     let fail = 0;
+    const failedUrls: string[] = [];
+    let firstError = "";
     try {
       this.isProcessing = true;
       this.bulkButton.disabled = true;
@@ -440,21 +435,25 @@ export class SidebarView extends ItemView {
         const url = urls[i];
         try {
           const service = this.createSummarizerService();
-          await service.summarize(url, settings.language, (stage) => {
+          await service.summarize(url, settings.summaryLanguage, (stage) => {
             this.setLoading(
               true,
               `${tr.bulkProgress(i, urls.length)} ${this.resolveStageText(stage)}`
             );
           });
           ok++;
-        } catch {
+        } catch (error) {
           fail++;
+          failedUrls.push(url);
+          if (!firstError) firstError = error instanceof Error ? error.message : tr.errorSummarizeFailed;
         }
       }
 
-      this.showSuccess(tr.bulkDone(ok, fail));
+      if (fail) this.showError(`${tr.bulkDone(ok, fail)}\n${firstError}`);
+      else this.showSuccess(tr.bulkDone(ok, fail));
       new Notice(tr.bulkDone(ok, fail));
-      this.bulkTextarea.value = "";
+      // 아직 자막이 없는 영상은 입력란에 남겨 다음에 바로 재시도할 수 있게 한다.
+      this.bulkTextarea.value = failedUrls.join("\n");
     } finally {
       this.isProcessing = false;
       this.bulkButton.disabled = false;
