@@ -376,7 +376,7 @@ describe("FeedView", () => {
         ".youtube-feed-refresh-btn"
       ) as HTMLButtonElement;
       expect(refreshBtn).not.toBeNull();
-      expect(refreshBtn.textContent).toBe(tr.feedRefreshButton);
+      expect(refreshBtn.getAttribute("aria-label")).toBe(tr.feedRefreshButton);
     });
   });
 

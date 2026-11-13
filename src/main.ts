@@ -5,8 +5,8 @@
 // 매 요약마다 최신 설정으로 로컬 자막·모델 서비스를 생성
 // ============================================================
 
-import { Plugin, WorkspaceLeaf, addIcon } from "obsidian";
-import { detectLanguage } from "./i18n";
+import { Notice, Plugin, WorkspaceLeaf, addIcon } from "obsidian";
+import { detectLanguage, t } from "./i18n";
 import { PluginSettings, DEFAULT_SETTINGS, SubscriptionChannel } from "./models/types";
 import {
   SidebarView,
@@ -15,6 +15,8 @@ import {
 import { SettingsTab } from "./settings/SettingsTab";
 import { NoteCreator } from "./services/NoteCreator";
 import { SummarizerService } from "./services/SummarizerService";
+import { AiModelClient } from "./services/AiModelClient";
+import { requestHttp } from "./services/http";
 import { YouTubeDataApiClient } from "./services/YouTubeDataApiClient";
 import { SubscriptionManager } from "./services/SubscriptionManager";
 
@@ -43,7 +45,12 @@ export default class YouTubeSummarizerPlugin extends Plugin {
             this.app,
             saveFolderPath ?? this.settings.saveFolderPath
           );
-          return new SummarizerService({ ...this.settings }, noteCreator);
+          const settings = { ...this.settings };
+          // 프로필 실패로 Bearer 토큰을 쓰게 되면 조용히 넘어가지 않고 알린다.
+          const model = new AiModelClient(settings, requestHttp, () => {
+            new Notice(t(settings.language).noticeBearerFallback);
+          });
+          return new SummarizerService(settings, noteCreator, undefined, model);
         };
 
         // 구독 관련 의존성 생성 (매번 최신 설정으로 생성)

@@ -38,6 +38,9 @@ export class SubscriptionManager {
     return channelId[0] + "U" + channelId.slice(2);
   }
 
+  /** 마지막 조회에서 채널 조회가 실패한 이유 (피드가 비었을 때 원인 표시용) */
+  lastFetchError: unknown;
+
   /**
    * 모니터링 대상 채널의 최신 영상을 채널별로 그룹화하여 반환
    * 개별 채널 조회 실패 시 해당 채널만 건너뛰고 나머지 채널은 계속 처리
@@ -46,6 +49,7 @@ export class SubscriptionManager {
   async fetchNewVideos(): Promise<ChannelVideos[]> {
     const results: ChannelVideos[] = [];
     const { monitoredChannels, videosPerChannel } = this.settings;
+    this.lastFetchError = undefined;
 
     for (const channel of monitoredChannels) {
       try {
@@ -59,8 +63,9 @@ export class SubscriptionManager {
             videos: response.items,
           });
         }
-      } catch {
+      } catch (error) {
         // 개별 채널 실패 시 해당 채널만 건너뛰고 계속 진행
+        this.lastFetchError = error;
         continue;
       }
     }

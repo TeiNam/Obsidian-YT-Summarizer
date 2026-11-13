@@ -4,7 +4,7 @@
 // URL 요약 탭과 구독 피드 탭 전환 지원
 // ============================================================
 
-import { ItemView, WorkspaceLeaf, Notice, App } from "obsidian";
+import { ItemView, WorkspaceLeaf, Notice, App, TFile, setIcon } from "obsidian";
 import { validateYouTubeUrl } from "../utils/YouTubeUrlValidator";
 import { SummarizerService } from "../services/SummarizerService";
 import { getAiConfigurationError } from "../services/AiModelClient";
@@ -12,6 +12,10 @@ import { PluginSettings, SummaryStage } from "../models/types";
 import { t, Translations } from "../i18n";
 import { SubscriptionManager } from "../services/SubscriptionManager";
 import { FeedView } from "./FeedView";
+import { stageText } from "./stageText";
+
+const STATUS_ICONS = { loading: "loader", error: "alert-triangle", success: "check" } as const;
+type StatusKind = keyof typeof STATUS_ICONS;
 
 /** 뷰 타입 식별자 상수 - main.ts에서 뷰 등록 시 사용 */
 export const VIEW_TYPE_YOUTUBE_SUMMARIZER = "youtube-summarizer-view";
@@ -53,6 +57,9 @@ export class SidebarView extends ItemView {
   private bulkTextarea!: HTMLTextAreaElement;
   /** 벌크 요약 실행 버튼 */
   private bulkButton!: HTMLButtonElement;
+  private bulkCancelButton!: HTMLButtonElement;
+  private scriptDetails!: HTMLDetailsElement;
+  private isBulkCancelled = false;
   /** 요약 실행 버튼 */
   private summarizeButton!: HTMLButtonElement;
   /** 상태 메시지 표시 영역 */
@@ -149,27 +156,24 @@ export class SidebarView extends ItemView {
       cls: "youtube-summarizer-tabs",
     });
 
-    // URL 요약 탭 버튼 (div 사용 - 기존 button 쿼리와 충돌 방지)
-    const urlTabBtn = this.tabContainerEl.createDiv({
-      cls: "youtube-summarizer-tab",
-    });
-    urlTabBtn.textContent = tr.tabUrlSummary;
-    urlTabBtn.dataset.tab = "url";
-    urlTabBtn.setAttribute("role", "tab");
-    urlTabBtn.addEventListener("click", () => {
-      this.switchTab("url");
-    });
-
-    // 구독 피드 탭 버튼
-    const feedTabBtn = this.tabContainerEl.createDiv({
-      cls: "youtube-summarizer-tab",
-    });
-    feedTabBtn.textContent = tr.tabSubscriptionFeed;
-    feedTabBtn.dataset.tab = "feed";
-    feedTabBtn.setAttribute("role", "tab");
-    feedTabBtn.addEventListener("click", () => {
-      this.switchTab("feed");
-    });
+    // 탭은 키보드로도 전환할 수 있어야 한다 (Enter·Space로 선택, 좌우 화살표로 이동)
+    this.tabContainerEl.setAttribute("role", "tablist");
+    for (const [tab, label] of [["url", tr.tabUrlSummary], ["feed", tr.tabSubscriptionFeed]] as const) {
+      const tabEl = this.tabContainerEl.createDiv({ cls: "youtube-summarizer-tab" });
+      tabEl.textContent = label;
+      tabEl.dataset.tab = tab;
+      tabEl.setAttribute("role", "tab");
+      tabEl.addEventListener("click", () => this.switchTab(tab));
+      tabEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          this.switchTab(tab);
+        } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          this.switchTab(tab === "url" ? "feed" : "url", true);
+        }
+      });
+    }
 
     // 탭 콘텐츠 영역
     this.tabContentEl = container.createDiv({
@@ -194,7 +198,7 @@ export class SidebarView extends ItemView {
    * 탭은 처음 열 때만 생성하고, 전환 시 보관한 DOM을 다시 표시한다.
    * 비활성 탭의 요약 콜백도 같은 DOM을 갱신하므로 결과가 유지된다.
    */
-  private switchTab(tab: "url" | "feed"): void {
+  private switchTab(tab: "url" | "feed", shouldFocus = false): void {
     this.activeTab = tab;
     // 마지막 선택 탭 상태를 static 변수에 저장 (뷰 재오픈 시 복원)
     SidebarView.lastActiveTab = tab;
@@ -203,11 +207,11 @@ export class SidebarView extends ItemView {
     const tabButtons = this.tabContainerEl.querySelectorAll(".youtube-summarizer-tab");
     tabButtons.forEach((btn) => {
       const btnEl = btn as HTMLElement;
-      if (btnEl.dataset.tab === tab) {
-        btnEl.classList.add("active");
-      } else {
-        btnEl.classList.remove("active");
-      }
+      const isActive = btnEl.dataset.tab === tab;
+      btnEl.classList.toggle("active", isActive);
+      btnEl.setAttribute("aria-selected", String(isActive));
+      btnEl.tabIndex = isActive ? 0 : -1;
+      if (isActive && shouldFocus) btnEl.focus();
     });
 
     let panel = this.tabPanels[tab];
@@ -238,12 +242,17 @@ export class SidebarView extends ItemView {
       placeholder: tr.urlPlaceholder,
       cls: "youtube-summarizer-url-input",
     });
+    this.urlInput.addEventListener("keydown", (event) => {
+      // 한글 조합 중의 Enter는 글자 확정이므로 요약을 시작하지 않는다.
+      if (event.key === "Enter" && !event.isComposing) this.handleSummarize();
+    });
 
     // 요약 버튼 (URL 바로 아래에 배치하여 주 동선을 단순화)
     this.summarizeButton = inputContainer.createEl("button", {
       text: tr.summarizeButton,
       cls: "youtube-summarizer-button",
     });
+    this.summarizeButton.addClass("mod-cta");
     this.summarizeButton.addEventListener("click", () => {
       this.handleSummarize();
     });
@@ -252,6 +261,7 @@ export class SidebarView extends ItemView {
     const scriptContainer = inputContainer.createEl("details", {
       cls: "youtube-summarizer-script-container",
     });
+    this.scriptDetails = scriptContainer;
 
     // summary가 곧 접기/펼치기 토글이자 라벨 역할
     scriptContainer.createEl("summary", {
@@ -288,8 +298,20 @@ export class SidebarView extends ItemView {
       text: tr.bulkButton,
       cls: "youtube-summarizer-button",
     });
+    this.bulkButton.addClass("mod-cta");
     this.bulkButton.addEventListener("click", () => {
       this.handleBulkSummarize();
+    });
+
+    // 진행 중에만 보이는 중단 버튼: 현재 영상이 끝나면 남은 링크를 건너뛴다.
+    this.bulkCancelButton = bulkContainer.createEl("button", {
+      text: tr.bulkCancelButton,
+      cls: "youtube-summarizer-cancel-button",
+    });
+    this.bulkCancelButton.hidden = true;
+    this.bulkCancelButton.addEventListener("click", () => {
+      this.isBulkCancelled = true;
+      this.bulkCancelButton.disabled = true;
     });
 
     bulkContainer.createDiv({
@@ -358,23 +380,23 @@ export class SidebarView extends ItemView {
 
     try {
       this.isProcessing = true;
-      this.setLoading(true, this.resolveStageText(SummaryStage.VALIDATING));
+      this.setLoading(true, stageText(tr, SummaryStage.VALIDATING));
 
       const summarizerService = this.createSummarizerService();
 
       // 스크립트 입력값 가져오기
       const manualTranscript = this.scriptTextarea?.value?.trim() || undefined;
 
-      await summarizerService.summarize(
+      const file = await summarizerService.summarize(
         url,
         settings.summaryLanguage,
         (stage: string) => {
-          this.setLoading(true, this.resolveStageText(stage));
+          this.setLoading(true, stageText(tr, stage));
         },
         manualTranscript
       );
 
-      this.showSuccess(this.resolveStageText(SummaryStage.COMPLETE));
+      this.showSuccess(stageText(tr, SummaryStage.COMPLETE), file);
       new Notice(tr.noticeSummaryComplete);
       this.resetForm();
     } catch (error) {
@@ -383,6 +405,12 @@ export class SidebarView extends ItemView {
           ? error.message
           : tr.errorSummarizeFailed;
       this.showError(errorMessage);
+      // 자막을 못 가져온 경우 다음 행동(자막 직접 붙여넣기)을 바로 보여준다.
+      const isCaptionError = [
+        tr.errorNoCaptions, tr.errorCaptionAccess, tr.errorCaptionFormat,
+        tr.errorCaptionIncomplete, tr.errorCaptionsTimeout,
+      ].some((message) => errorMessage.startsWith(message));
+      if (isCaptionError && this.scriptDetails) this.scriptDetails.open = true;
       this.summarizeButton.disabled = false;
       this.summarizeButton.textContent = tr.summarizeButton;
     } finally {
@@ -399,10 +427,12 @@ export class SidebarView extends ItemView {
     if (this.isProcessing) return;
 
     const tr = this.tr;
-    const urls = this.bulkTextarea.value
+    const lines = this.bulkTextarea.value
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line.length > 0 && validateYouTubeUrl(line).isValid);
+      .filter((line) => line.length > 0);
+    const urls = lines.filter((line) => validateYouTubeUrl(line).isValid);
+    const skippedLines = lines.filter((line) => !validateYouTubeUrl(line).isValid);
 
     if (urls.length === 0) {
       this.showError(tr.errorInvalidUrl);
@@ -422,61 +452,54 @@ export class SidebarView extends ItemView {
     }
 
     let ok = 0;
-    let fail = 0;
-    const failedUrls: string[] = [];
-    let firstError = "";
+    const failures: { url: string; reason: string }[] = [];
+    let remainingUrls: string[] = [];
+
     try {
       this.isProcessing = true;
+      this.isBulkCancelled = false;
       this.bulkButton.disabled = true;
+      this.bulkCancelButton.disabled = false;
+      this.bulkCancelButton.hidden = false;
       this.setLoading(true, tr.bulkProgress(0, urls.length));
 
       // 큐 순차 실행: 하나 끝나야 다음 시작 (API/노트 순서 보존)
       for (let i = 0; i < urls.length; i++) {
+        if (this.isBulkCancelled) {
+          remainingUrls = urls.slice(i);
+          break;
+        }
         const url = urls[i];
         try {
           const service = this.createSummarizerService();
           await service.summarize(url, settings.summaryLanguage, (stage) => {
-            this.setLoading(
-              true,
-              `${tr.bulkProgress(i, urls.length)} ${this.resolveStageText(stage)}`
-            );
+            this.setLoading(true, `${tr.bulkProgress(i, urls.length)} ${stageText(tr, stage)}`);
           });
           ok++;
         } catch (error) {
-          fail++;
-          failedUrls.push(url);
-          if (!firstError) firstError = error instanceof Error ? error.message : tr.errorSummarizeFailed;
+          failures.push({ url, reason: error instanceof Error ? error.message : tr.errorSummarizeFailed });
         }
       }
 
-      if (fail) this.showError(`${tr.bulkDone(ok, fail)}\n${firstError}`);
-      else this.showSuccess(tr.bulkDone(ok, fail));
-      new Notice(tr.bulkDone(ok, fail));
-      // 아직 자막이 없는 영상은 입력란에 남겨 다음에 바로 재시도할 수 있게 한다.
-      this.bulkTextarea.value = failedUrls.join("\n");
+      const summary = tr.bulkDone(ok, failures.length);
+      const details = [
+        summary,
+        skippedLines.length ? tr.bulkSkipped(skippedLines.length) : "",
+        remainingUrls.length ? tr.bulkCancelled(remainingUrls.length) : "",
+        ...failures.map(({ url, reason }) => `${url} — ${reason}`),
+      ].filter(Boolean).join("\n");
+      if (failures.length) this.showError(details);
+      else this.showSuccess(details);
+      new Notice(summary);
+      // 실패·중단·건너뛴 줄은 입력란에 남겨 고치거나 바로 재시도할 수 있게 한다.
+      this.bulkTextarea.value = [...failures.map(({ url }) => url), ...remainingUrls, ...skippedLines].join("\n");
     } finally {
       this.isProcessing = false;
       this.bulkButton.disabled = false;
+      this.bulkCancelButton.hidden = true;
       this.summarizeButton.disabled = false;
       this.summarizeButton.textContent = tr.summarizeButton;
     }
-  }
-
-  /**
-   * SummaryStage enum 값을 현재 언어의 텍스트로 변환
-   */
-  private resolveStageText(stage: string): string {
-    const tr = this.tr;
-    const stageMap: Record<string, string> = {
-      [SummaryStage.VALIDATING]: tr.stageValidating,
-      [SummaryStage.PENDING]: tr.stagePending,
-      [SummaryStage.EXTRACTING]: tr.stageExtracting,
-      [SummaryStage.TRANSLATING]: tr.stageTranslating,
-      [SummaryStage.SUMMARIZING]: tr.stageSummarizing,
-      [SummaryStage.CREATING_NOTE]: tr.stageCreatingNote,
-      [SummaryStage.COMPLETE]: tr.stageComplete,
-    };
-    return stageMap[stage] ?? stage;
   }
 
   setLoading(loading: boolean, message?: string): void {
@@ -484,23 +507,38 @@ export class SidebarView extends ItemView {
     this.summarizeButton.disabled = loading;
     this.summarizeButton.textContent = loading ? tr.summarizingButton : tr.summarizeButton;
 
-    if (loading && message) {
-      this.statusMessage.textContent = message;
-      this.statusMessage.className = "youtube-summarizer-status loading";
-    } else if (!loading) {
-      this.statusMessage.textContent = "";
-      this.statusMessage.className = "youtube-summarizer-status";
-    }
+    if (loading && message) this.setStatus("loading", message);
+    else if (!loading) this.setStatus(null, "");
   }
 
   showError(message: string): void {
-    this.statusMessage.textContent = message;
-    this.statusMessage.className = "youtube-summarizer-status error";
+    this.setStatus("error", message);
   }
 
-  showSuccess(message: string): void {
-    this.statusMessage.textContent = message;
-    this.statusMessage.className = "youtube-summarizer-status success";
+  /** file을 넘기면 완료 문구 옆에 생성된 노트를 여는 링크를 붙인다 */
+  showSuccess(message: string, file?: TFile): void {
+    this.setStatus("success", message);
+    if (!file) return;
+    const link = this.statusMessage.createEl("a", {
+      text: this.tr.openNoteLink,
+      cls: "youtube-summarizer-open-note",
+    });
+    link.setAttribute("href", "#");
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      void this.app.workspace.getLeaf(false).openFile(file);
+    });
+  }
+
+  private setStatus(kind: StatusKind | null, message: string): void {
+    const el = this.statusMessage;
+    el.empty();
+    el.className = kind ? `youtube-summarizer-status ${kind}` : "youtube-summarizer-status";
+    // 오류는 스크린 리더가 즉시 읽도록 alert로 알린다.
+    el.setAttribute("role", kind === "error" ? "alert" : "status");
+    if (!kind || !message) return;
+    setIcon(el.createEl("span", { cls: "youtube-summarizer-status-icon" }), STATUS_ICONS[kind]);
+    el.createEl("span", { text: message, cls: "youtube-summarizer-status-text" });
   }
 
   resetForm(): void {

@@ -24,7 +24,8 @@ function hasProfileRuntime(): boolean {
   return Platform.isDesktopApp && Number.isFinite(nodeMajor) && nodeMajor >= MIN_PROFILE_NODE_MAJOR;
 }
 
-function canUseProfile(settings: PluginSettings): boolean {
+/** 이 설정으로 호출하면 AWS 프로필을 먼저 시도하는지 여부 (연결 테스트 결과 표시용) */
+export function canUseProfile(settings: PluginSettings): boolean {
   return hasText(settings.bedrockProfile) && hasProfileRuntime();
 }
 
@@ -44,11 +45,17 @@ function isCredentialsError(error: unknown): boolean {
 }
 
 /** 프로필 자격 증명 실패이고 토큰이 있을 때만 Bearer로 다시 시도한다. 권한·모델 오류는 다른 계정으로 넘기지 않는다. */
-function withBearerFallback<T>(settings: PluginSettings, viaProfile: () => Promise<T>, viaBearer: () => Promise<T>): Promise<T> {
+function withBearerFallback<T>(
+  settings: PluginSettings,
+  viaProfile: () => Promise<T>,
+  viaBearer: () => Promise<T>,
+  onFallback?: () => void
+): Promise<T> {
   if (!canUseProfile(settings)) return viaBearer();
   return viaProfile().catch((error: unknown) => {
-    if (bedrockToken(settings) && error instanceof ProfileCredentialsError) return viaBearer();
-    throw error;
+    if (!bedrockToken(settings) || !(error instanceof ProfileCredentialsError)) throw error;
+    onFallback?.();
+    return viaBearer();
   });
 }
 
@@ -285,10 +292,13 @@ function textBlocks(blocks: unknown): string {
 
 export class AiModelClient {
   private profileClient?: BedrockRuntimeClient;
+  private hasFallenBack = false;
 
   constructor(
     private settings: PluginSettings,
-    private request: RequestFn = requestHttp
+    private request: RequestFn = requestHttp,
+    /** 프로필 자격 증명 실패로 Bearer 토큰을 쓰게 됐을 때 한 번 호출된다 */
+    private onBearerFallback?: () => void
   ) {}
 
   async generate(prompt: string): Promise<string> {
@@ -304,11 +314,19 @@ export class AiModelClient {
           inferenceConfig: { maxTokens: settings.maxOutputTokens },
         };
         const domain = settings.bedrockRegion.startsWith("cn-") ? "amazonaws.com.cn" : "amazonaws.com";
-        response = await withBearerFallback(settings, () => this.generateWithProfile(body), () => this.post(
+        const viaBearer = () => this.post(
           `https://bedrock-runtime.${settings.bedrockRegion}.${domain}/model/${encodeURIComponent(settings.bedrockModelId.trim())}/converse`,
           { Authorization: `Bearer ${bedrockToken(settings)}` },
           body
-        ));
+        );
+        // 한 번 폴백한 뒤에는 번역 조각마다 프로필(credential_process)을 다시 시도하지 않는다.
+        response = this.hasFallenBack ? await viaBearer() : await withBearerFallback(
+          settings, () => this.generateWithProfile(body), viaBearer,
+          () => {
+            this.hasFallenBack = true;
+            this.onBearerFallback?.();
+          }
+        );
         break;
       }
       case "openai": {

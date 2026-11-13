@@ -4,7 +4,7 @@
 // 채널별 그룹화, 영상별 요약 상태 추적, 오류 격리 지원
 // ============================================================
 
-import { App } from "obsidian";
+import { App, TFile, setIcon } from "obsidian";
 import { SubscriptionManager } from "../services/SubscriptionManager";
 import { SummarizerService } from "../services/SummarizerService";
 import {
@@ -15,6 +15,7 @@ import {
   MonitoredChannel,
 } from "../models/types";
 import { t, Translations } from "../i18n";
+import { stageText } from "./stageText";
 
 /**
  * FeedView 의존성 인터페이스
@@ -49,6 +50,10 @@ export class FeedView {
   /** 영상별 요약 상태 추적 맵 (videoId → 상태) */
   private videoStatusMap: Map<string, VideoSummaryStatus> = new Map();
   private videoErrorMap: Map<string, string> = new Map();
+  /** 요약 진행 단계 문구 (재렌더링 후에도 유지) */
+  private videoStageMap: Map<string, string> = new Map();
+  /** 이번 세션에 만든 노트 (완료 표시에서 바로 열기 위함) */
+  private videoFileMap: Map<string, TFile> = new Map();
   /** 영상별 원본 정보 맵 (videoId → VideoItem) - 상태 재렌더/재시도 시 사용 */
   private videoItemMap: Map<string, VideoItem> = new Map();
   /** "더 보기"로 전체 영상이 펼쳐진 채널 ID 집합 */
@@ -90,13 +95,18 @@ export class FeedView {
     }
 
     // 새로고침 버튼
+    // 보조 동작이므로 강조 버튼 대신 오른쪽 정렬된 아이콘 버튼으로 둔다.
+    const toolbarEl = document.createElement("div");
+    toolbarEl.className = "youtube-feed-toolbar";
     const refreshBtn = document.createElement("button");
-    refreshBtn.textContent = this.tr.feedRefreshButton;
-    refreshBtn.className = "youtube-feed-refresh-btn";
+    refreshBtn.className = "youtube-feed-refresh-btn clickable-icon";
+    refreshBtn.setAttribute("aria-label", this.tr.feedRefreshButton);
+    setIcon(refreshBtn, "refresh-cw");
     refreshBtn.addEventListener("click", () => {
       this.loadFeed();
     });
-    this.containerEl.appendChild(refreshBtn);
+    toolbarEl.appendChild(refreshBtn);
+    this.containerEl.appendChild(toolbarEl);
 
     // 피드 콘텐츠 영역
     this.contentEl = document.createElement("div");
@@ -144,6 +154,12 @@ export class FeedView {
       // 신규 영상이 없는 경우 빈 피드 메시지 표시
       if (channelVideos.length === 0) {
         this.lastChannelVideos = [];
+        // 모든 채널 조회가 실패한 경우 "새 영상 없음"이 아니라 실패 이유를 보여준다.
+        const fetchError = this.deps.subscriptionManager.lastFetchError;
+        if (fetchError) {
+          this.contentEl.appendChild(this.renderLoadError(fetchError));
+          return;
+        }
         const emptyMsg = document.createElement("div");
         emptyMsg.className = "youtube-feed-empty";
         emptyMsg.textContent = this.tr.feedEmpty;
@@ -160,10 +176,7 @@ export class FeedView {
         while (this.contentEl.firstChild) {
           this.contentEl.removeChild(this.contentEl.firstChild);
         }
-        const errorMsg = document.createElement("div");
-        errorMsg.className = "youtube-feed-empty";
-        errorMsg.textContent = this.tr.feedSummaryError;
-        this.contentEl.appendChild(errorMsg);
+        this.contentEl.appendChild(this.renderLoadError(undefined));
       }
     }
   }
@@ -273,9 +286,13 @@ export class FeedView {
     itemEl.appendChild(rowEl);
 
     // 영상 제목
-    const titleEl = document.createElement("div");
+    // 요약 전에 어떤 영상인지 유튜브에서 확인할 수 있도록 링크로 둔다.
+    const titleEl = document.createElement("a");
     titleEl.className = "youtube-feed-video-title";
     titleEl.textContent = video.title;
+    titleEl.href = `https://www.youtube.com/watch?v=${video.videoId}`;
+    titleEl.target = "_blank";
+    titleEl.rel = "noopener";
     rowEl.appendChild(titleEl);
 
     // 메타 정보 (채널명, 업로드 날짜)
@@ -335,22 +352,17 @@ export class FeedView {
       btn.disabled = true;
       target.appendChild(btn);
 
-      const statusEl = document.createElement("span");
-      statusEl.className = "youtube-feed-status";
-      statusEl.textContent = this.tr.feedSummarizing;
-      target.appendChild(statusEl);
+      target.appendChild(this.createStatusEl("", this.videoStageMap.get(video.videoId) ?? this.tr.feedSummarizing));
     } else if (status === "completed") {
       // 요약 완료 상태 (영구 표시)
-      const statusEl = document.createElement("span");
-      statusEl.className = "youtube-feed-status completed";
-      statusEl.textContent = this.tr.feedSummarized;
-      target.appendChild(statusEl);
+      target.appendChild(
+        this.createStatusEl("completed", this.tr.feedSummarized, "check", this.videoFileMap.get(video.videoId))
+      );
     } else if (status === "error") {
       // 요약 실패 상태 - 재시도 가능하도록 요약 버튼 다시 활성화
-      const statusEl = document.createElement("span");
-      statusEl.className = "youtube-feed-status error";
-      statusEl.textContent = this.videoErrorMap.get(video.videoId) ?? this.tr.feedSummaryError;
-      target.appendChild(statusEl);
+      target.appendChild(this.createStatusEl(
+        "error", this.videoErrorMap.get(video.videoId) ?? this.tr.feedSummaryError, "alert-triangle"
+      ));
 
       const btn = document.createElement("button");
       btn.className = "youtube-feed-summarize-btn";
@@ -360,6 +372,40 @@ export class FeedView {
       });
       target.appendChild(btn);
     }
+  }
+
+  /** 상태 표시 요소: 아이콘 + 문구. file이 있으면 문구가 그 노트를 여는 링크가 된다 */
+  private createStatusEl(kind: "" | "completed" | "error", text: string, icon?: string, file?: TFile): HTMLElement {
+    const statusEl = document.createElement("span");
+    statusEl.className = kind ? `youtube-feed-status ${kind}` : "youtube-feed-status";
+    if (icon) {
+      const iconEl = document.createElement("span");
+      iconEl.className = "youtube-feed-status-icon";
+      setIcon(iconEl, icon);
+      statusEl.appendChild(iconEl);
+    }
+    const textEl = document.createElement(file ? "a" : "span");
+    textEl.textContent = text;
+    if (file) {
+      textEl.setAttribute("href", "#");
+      textEl.addEventListener("click", (event) => {
+        event.preventDefault();
+        void this.deps.app.workspace.getLeaf(false).openFile(file);
+      });
+    }
+    statusEl.appendChild(textEl);
+    return statusEl;
+  }
+
+  /** 피드를 불러오지 못한 이유를 상태 코드에 맞는 문구로 보여준다 */
+  private renderLoadError(error: unknown): HTMLElement {
+    const { statusCode, message } = (error ?? {}) as { statusCode?: number; message?: string };
+    const errorMsg = document.createElement("div");
+    errorMsg.className = "youtube-feed-empty youtube-feed-error";
+    errorMsg.setAttribute("role", "alert");
+    const lead = statusCode === 403 ? this.tr.errorInvalidYoutubeDataApiKey : this.tr.errorFetchSubscriptions;
+    errorMsg.textContent = message ? `${lead}\n${message}` : lead;
+    return errorMsg;
   }
 
   /**
@@ -390,15 +436,19 @@ export class FeedView {
       // 채널별 폴더 경로로 SummarizerService 생성하여 요약 실행 (노트 생성 포함)
       // 노트 파일명 접두사로 쓰도록 원본 영상 업로드 날짜를 전달
       const summarizerService = this.deps.summarizerServiceFactory(saveFolderPath);
-      await summarizerService.summarize(
+      const file = await summarizerService.summarize(
         videoUrl,
         settings.summaryLanguage,
-        () => {
-          // 진행 상태 콜백 - 상태는 이미 "summarizing"으로 표시 중
+        (stage) => {
+          // 자막 추출 → 번역 → 요약 단계를 영상 항목에 그대로 보여준다.
+          this.videoStageMap.set(video.videoId, stageText(this.tr, stage));
+          this.updateVideoStatus(video.videoId, "summarizing");
         },
         undefined,
         video.publishedAt
       );
+      this.videoStageMap.delete(video.videoId);
+      if (file) this.videoFileMap.set(video.videoId, file);
 
       // 상태를 "completed"로 변경
       this.updateVideoStatus(video.videoId, "completed");
@@ -445,6 +495,8 @@ export class FeedView {
   destroy(): void {
     this.videoStatusMap.clear();
     this.videoErrorMap.clear();
+    this.videoStageMap.clear();
+    this.videoFileMap.clear();
     this.videoItemMap.clear();
     this.expandedChannels.clear();
     this.lastChannelVideos = [];
