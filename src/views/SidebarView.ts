@@ -8,7 +8,7 @@ import { ItemView, WorkspaceLeaf, Notice, App, TFile, setIcon } from "obsidian";
 import { validateYouTubeUrl } from "../utils/YouTubeUrlValidator";
 import { SummarizerService } from "../services/SummarizerService";
 import { getAiConfigurationError } from "../services/AiModelClient";
-import { PluginSettings, SummaryStage } from "../models/types";
+import { AI_MODEL_FIELDS, AI_PROVIDER_LABELS, PluginSettings, SummaryStage } from "../models/types";
 import { t, Translations } from "../i18n";
 import { SubscriptionManager } from "../services/SubscriptionManager";
 import { FeedView } from "./FeedView";
@@ -64,6 +64,7 @@ export class SidebarView extends ItemView {
   private summarizeButton!: HTMLButtonElement;
   /** 상태 메시지 표시 영역 */
   private statusMessage!: HTMLElement;
+  private infoEl: HTMLElement | null = null;
 
   /** 탭 콘텐츠 영역 */
   private tabContentEl!: HTMLElement;
@@ -318,6 +319,47 @@ export class SidebarView extends ItemView {
       text: tr.bulkHint,
       cls: "youtube-summarizer-script-hint",
     });
+
+    this.infoEl = container.createDiv({ cls: "youtube-summarizer-info" });
+    this.refreshInfo();
+  }
+
+  /** URL 탭 아래의 현황: 요약에 쓰는 제공자·모델과 구독 피드 상태. 설정이 저장될 때마다 다시 그린다 */
+  refreshInfo(): void {
+    const settings = this.getSettings?.();
+    if (!this.infoEl || !settings) return;
+    const tr = this.tr;
+    const channels = settings.monitoredChannels ?? [];
+    const groupCount = new Set(channels.map((channel) => channel.group?.trim()).filter(Boolean)).size;
+    const feedStatus = !settings.youtubeDataApiKey.trim() ? tr.infoFeedNeedsKey
+      : channels.length ? tr.infoFeedReady : tr.infoFeedNoChannels;
+
+    this.infoEl.empty();
+    const rows: [string, string][] = [
+      [tr.infoProviderLabel, AI_PROVIDER_LABELS[settings.aiProvider]],
+      [tr.infoModelLabel, settings[AI_MODEL_FIELDS[settings.aiProvider]].trim() || tr.infoNotSet],
+      [tr.infoFeedLabel, feedStatus],
+      [tr.infoGroupsLabel, String(groupCount)],
+      [tr.infoChannelsLabel, String(channels.length)],
+    ];
+    for (const [label, value] of rows) {
+      const row = this.infoEl.createDiv({ cls: "youtube-summarizer-info-row" });
+      row.createEl("span", { text: label, cls: "youtube-summarizer-info-label" });
+      row.createEl("span", { text: value, cls: "youtube-summarizer-info-value" });
+    }
+    if (channels.length) {
+      const listEl = this.infoEl.createEl("ul", { cls: "youtube-summarizer-info-channels" });
+      for (const channel of channels) {
+        const itemEl = listEl.createEl("li", { text: channel.channelTitle });
+        const group = channel.group?.trim();
+        if (group) itemEl.createEl("span", { text: group, cls: "youtube-summarizer-info-channel-group" });
+      }
+    }
+    // 지금 설정으로는 요약할 수 없는 경우 이유를 바로 보여준다.
+    const configurationError = getAiConfigurationError(settings);
+    if (configurationError) {
+      this.infoEl.createDiv({ text: configurationError, cls: "youtube-summarizer-info-warning" });
+    }
   }
 
   /**

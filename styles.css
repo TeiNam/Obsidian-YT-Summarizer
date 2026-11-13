@@ -168,6 +168,56 @@
   margin-top: 6px;
 }
 
+/* URL 탭 아래 현황: 제공자·모델과 구독 피드 상태 */
+.youtube-summarizer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: 0.8em;
+}
+
+.youtube-summarizer-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.youtube-summarizer-info-label {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.youtube-summarizer-info-value {
+  min-width: 0;
+  text-align: right;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.youtube-summarizer-info-channels {
+  margin: 0;
+  padding-left: 1.4em;
+  color: var(--text-normal);
+}
+
+.youtube-summarizer-info-channels li {
+  overflow-wrap: anywhere;
+}
+
+.youtube-summarizer-info-channel-group {
+  margin-left: 6px;
+  color: var(--text-faint);
+}
+
+.youtube-summarizer-info-warning {
+  margin-top: 4px;
+  color: var(--text-error);
+}
+
 /* ============================================================
    구독 피드 관련 스타일
    탭 전환 UI, 채널별 영상 목록, 요약 상태, 모바일 반응형
@@ -390,5 +440,61 @@
 
   .youtube-feed-refresh-btn {
     min-width: 44px;
+  }
+}
+
+/* ============================================================
+   설정 탭: 상단 설명과 하단 후원 배너
+   ============================================================ */
+
+.youtube-summarizer-settings-desc {
+  margin: 0 0 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.youtube-summarizer-sponsor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 18px 0 6px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+/* Buy Me a Coffee 브랜드 색(노랑 바탕·검정 글자)은 테마와 무관하게 고정한다 */
+.youtube-summarizer-sponsor-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background: #ffdd00;
+  color: #000000;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.youtube-summarizer-sponsor-button:hover {
+  opacity: 0.85;
+  color: #000000;
+  text-decoration: none;
+}
+
+.youtube-summarizer-sponsor-icon {
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .youtube-summarizer-sponsor-button {
+    min-height: 44px;
   }
 }

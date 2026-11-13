@@ -570,6 +570,53 @@ describe("SidebarView", () => {
     });
   });
 
+  describe("URL 탭 현황 패널", () => {
+    it("제공자·모델과 구독 피드 상태·채널·그룹 수를 보여주고, 설정이 바뀌면 다시 그린다", async () => {
+      const channel = (channelId: string, group?: string) => ({ channelId, channelTitle: channelId, thumbnailUrl: "", group });
+      let settings: PluginSettings = {
+        ...DEFAULT_SETTINGS,
+        bedrockBearerToken: "test-key",
+        youtubeDataApiKey: "data-key",
+        monitoredChannels: [channel("UC1", "주식"), channel("UC2", " 주식 "), channel("UC3", "스터디"), channel("UC4")],
+      };
+      view.setDependencies({ summarize: vi.fn() } as unknown as SummarizerService, () => settings);
+      await view.onOpen();
+      const info = (): Record<string, string> => Object.fromEntries(
+        Array.from(view.contentEl.querySelectorAll(".youtube-summarizer-info-row"), (row) =>
+          [row.children[0].textContent, row.children[1].textContent])
+      );
+
+      expect(info()).toEqual({
+        [tr.infoProviderLabel]: "Amazon Bedrock",
+        [tr.infoModelLabel]: DEFAULT_SETTINGS.bedrockModelId,
+        [tr.infoFeedLabel]: tr.infoFeedReady,
+        [tr.infoGroupsLabel]: "2",
+        [tr.infoChannelsLabel]: "4",
+      });
+      // 그룹 수가 채널 수보다 위에 오고, 채널은 그룹명과 함께 목록으로 나열한다.
+      expect(Object.keys(info()).slice(-2)).toEqual([tr.infoGroupsLabel, tr.infoChannelsLabel]);
+      expect(Array.from(view.contentEl.querySelectorAll(".youtube-summarizer-info-channels li"), (li) => li.textContent))
+        .toEqual(["UC1주식", "UC2주식", "UC3스터디", "UC4"]);
+      expect(view.contentEl.querySelector(".youtube-summarizer-info-warning")).toBeNull();
+
+      settings = { ...settings, aiProvider: "gemini", geminiModel: "", youtubeDataApiKey: "", monitoredChannels: [] };
+      view.refreshInfo();
+      expect(info()).toEqual({
+        [tr.infoProviderLabel]: "Google Gemini",
+        [tr.infoModelLabel]: tr.infoNotSet,
+        [tr.infoFeedLabel]: tr.infoFeedNeedsKey,
+        [tr.infoChannelsLabel]: "0",
+        [tr.infoGroupsLabel]: "0",
+      });
+      expect(view.contentEl.querySelector(".youtube-summarizer-info-channels")).toBeNull();
+      expect(view.contentEl.querySelector(".youtube-summarizer-info-warning")!.textContent).toBe(tr.errorMissingModel);
+
+      settings = { ...settings, youtubeDataApiKey: "data-key" };
+      view.refreshInfo();
+      expect(info()[tr.infoFeedLabel]).toBe(tr.infoFeedNoChannels);
+    });
+  });
+
   describe("키보드 조작과 자막 실패 안내", () => {
     const settings = { ...DEFAULT_SETTINGS, bedrockBearerToken: "test-key" };
 

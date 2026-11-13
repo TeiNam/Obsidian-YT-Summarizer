@@ -120,6 +120,10 @@ export default class YouTubeSummarizerPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    // 열려 있는 사이드바의 제공자·모델·구독 현황 표시를 새 설정에 맞춘다.
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_YOUTUBE_SUMMARIZER)) {
+      if (leaf.view instanceof SidebarView) leaf.view.refreshInfo();
+    }
   }
 
   async activateView(): Promise<void> {
