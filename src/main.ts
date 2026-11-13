@@ -17,6 +17,7 @@ import { NoteCreator } from "./services/NoteCreator";
 import { SummarizerService } from "./services/SummarizerService";
 import { AiModelClient } from "./services/AiModelClient";
 import { requestHttp } from "./services/http";
+import { migratePlaintextSecrets, resolveSecrets } from "./services/secrets";
 import { YouTubeDataApiClient } from "./services/YouTubeDataApiClient";
 import { SubscriptionManager } from "./services/SubscriptionManager";
 
@@ -41,11 +42,8 @@ export default class YouTubeSummarizerPlugin extends Plugin {
         // 서비스 팩토리: 매 요약 시 최신 설정으로 서비스 인스턴스 생성
         // saveFolderPath가 전달되면 해당 경로 사용 (채널별 폴더), 아니면 기본 폴더
         const serviceFactory = (saveFolderPath?: string) => {
-          const noteCreator = new NoteCreator(
-            this.app,
-            saveFolderPath ?? this.settings.saveFolderPath
-          );
-          const settings = { ...this.settings };
+          const settings = this.getResolvedSettings();
+          const noteCreator = new NoteCreator(this.app, saveFolderPath ?? settings.saveFolderPath);
           // 프로필 실패로 Bearer 토큰을 쓰게 되면 조용히 넘어가지 않고 알린다.
           const model = new AiModelClient(settings, requestHttp, () => {
             new Notice(t(settings.language).noticeBearerFallback);
@@ -53,11 +51,21 @@ export default class YouTubeSummarizerPlugin extends Plugin {
           return new SummarizerService(settings, noteCreator, undefined, model);
         };
 
-        // 구독 관련 의존성 생성 (매번 최신 설정으로 생성)
-        const dataApiClient = new YouTubeDataApiClient(this.settings.youtubeDataApiKey);
-        const subscriptionManager = new SubscriptionManager(dataApiClient, this.settings);
+        // 채널이나 API 키를 바꾼 뒤에도 뷰를 다시 열 필요가 없도록, 조회할 때마다 최신 설정으로 만든다.
+        const subscriptionManager = {
+          lastFetchError: undefined as unknown,
+          fetchNewVideos: async () => {
+            const settings = this.getResolvedSettings();
+            const manager = new SubscriptionManager(new YouTubeDataApiClient(settings.youtubeDataApiKey), settings);
+            try {
+              return await manager.fetchNewVideos();
+            } finally {
+              subscriptionManager.lastFetchError = manager.lastFetchError;
+            }
+          },
+        };
 
-        view.setDependencies(serviceFactory, () => this.settings, {
+        view.setDependencies(serviceFactory, () => this.getResolvedSettings(), {
           subscriptionManager,
           app: this.app,
           markSummarized: (videoId: string) => this.markVideoSummarized(videoId),
@@ -95,7 +103,7 @@ export default class YouTubeSummarizerPlugin extends Plugin {
    * SettingsTab의 YouTubeSummarizerPluginInterface를 만족시킴
    */
   async fetchChannelInfo(channelId: string): Promise<SubscriptionChannel> {
-    const apiClient = new YouTubeDataApiClient(this.settings.youtubeDataApiKey);
+    const apiClient = new YouTubeDataApiClient(this.getResolvedSettings().youtubeDataApiKey);
     return apiClient.fetchChannelInfo(channelId);
   }
 
@@ -114,17 +122,27 @@ export default class YouTubeSummarizerPlugin extends Plugin {
     await this.saveSettings();
   }
 
+  /** API 키 값을 비밀 저장소에서 채운 설정. 서비스와 뷰에는 항상 이 결과를 넘긴다 */
+  getResolvedSettings(): PluginSettings {
+    return resolveSecrets(this.settings, this.app.secretStorage);
+  }
+
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<PluginSettings> | null;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
-    // 저장된 UI 언어가 없으면(첫 실행) 시스템 언어로 초기화
-    if (!saved?.language) {
-      this.settings.language = detectLanguage();
-    }
-    // 기본 배열을 다른 플러그인 인스턴스나 이전 설정 객체와 공유하지 않는다.
-    this.settings.monitoredChannels = [...this.settings.monitoredChannels];
-    this.settings.summarizedVideoIds = [...this.settings.summarizedVideoIds];
-    this.settings.bedrockModels = [...this.settings.bedrockModels];
+    const merged = { ...DEFAULT_SETTINGS, ...saved };
+    const settings: PluginSettings = {
+      ...merged,
+      // 저장된 UI 언어가 없으면(첫 실행) Obsidian에서 고른 언어로 초기화
+      language: saved?.language ?? detectLanguage(),
+      // 기본 배열을 다른 플러그인 인스턴스나 이전 설정 객체와 공유하지 않는다.
+      monitoredChannels: [...merged.monitoredChannels],
+      summarizedVideoIds: [...merged.summarizedVideoIds],
+      bedrockModels: [...merged.bedrockModels],
+    };
+    // 예전 버전이 data.json에 평문으로 둔 API 키는 비밀 저장소로 옮기고 파일에서 지운다.
+    const migrated = migratePlaintextSecrets(settings, this.app.secretStorage);
+    this.settings = migrated ?? settings;
+    if (migrated) await this.saveData(this.settings);
   }
 
   async saveSettings(): Promise<void> {

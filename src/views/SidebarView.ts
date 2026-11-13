@@ -30,8 +30,8 @@ export type SummarizerServiceFactory = (saveFolderPath?: string) => SummarizerSe
  * 구독 관련 의존성 인터페이스
  */
 export interface SubscriptionDependencies {
-  /** 구독 관리 서비스 */
-  subscriptionManager: SubscriptionManager;
+  /** 구독 영상 조회 (항상 최신 설정으로 조회하도록 주입 측이 구현을 정한다) */
+  subscriptionManager: Pick<SubscriptionManager, "fetchNewVideos" | "lastFetchError">;
   /** 옵시디언 App 인스턴스 */
   app: App;
   /** 영상 요약 완료를 영구 저장하는 콜백 (FeedView로 전달) */

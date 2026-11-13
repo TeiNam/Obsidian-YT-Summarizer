@@ -28,7 +28,7 @@ const context = await esbuild.context({
     ...builtins,
   ],
   format: "cjs",
-  target: "chrome106",
+  target: "es2021",
   logLevel: "info",
   sourcemap: prod ? false : "inline",
   treeShaking: true,

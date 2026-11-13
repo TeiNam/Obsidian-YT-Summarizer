@@ -16,6 +16,23 @@ export const Platform = { isDesktopApp: true, isMobileApp: false };
 export function normalizePath(path: string): string {
   return path.replace(/[\\/]+/g, "/").replace(/^\/|\/$/g, "") || "/";
 }
+/** 실제로는 Obsidian에서 고른 앱 언어를 돌려준다. 테스트는 navigator.language로 흉내 낸다 */
+export function getLanguage(): string {
+  return typeof navigator !== "undefined" && navigator.language ? navigator.language : "en";
+}
+export class SecretStorage {
+  private secrets = new Map<string, string>();
+  setSecret(id: string, secret: string): void {
+    if (!/^[a-z0-9-]+$/.test(id)) throw new Error("Invalid secret ID");
+    this.secrets.set(id, secret);
+  }
+  getSecret(id: string): string | null {
+    return this.secrets.get(id) ?? null;
+  }
+  listSecrets(): string[] {
+    return [...this.secrets.keys()];
+  }
+}
 export function addIcon(_iconId: string, _svgContent: string): void {}
 
 export function setIcon(el: HTMLElement, iconId: string): void {
@@ -96,10 +113,12 @@ export class Vault {
 export class App {
   vault: Vault;
   workspace: Workspace;
+  secretStorage: SecretStorage;
 
   constructor() {
     this.vault = new Vault();
     this.workspace = new Workspace();
+    this.secretStorage = new SecretStorage();
   }
 }
 
@@ -311,6 +330,8 @@ export class PluginSettingTab {
   }
 
   display(): void {}
+  /** 실제로는 getSettingDefinitions()를 다시 읽어 화면을 그린다. 테스트는 필요한 방식으로 대체한다 */
+  update(): void {}
 }
 
 /**

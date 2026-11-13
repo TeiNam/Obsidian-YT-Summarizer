@@ -23,7 +23,7 @@ import { stageText } from "./stageText";
  */
 export interface FeedViewDependencies {
   /** 구독 관리 서비스 */
-  subscriptionManager: SubscriptionManager;
+  subscriptionManager: Pick<SubscriptionManager, "fetchNewVideos" | "lastFetchError">;
   /** SummarizerService 팩토리 - 저장 폴더 경로를 받아 새 인스턴스 생성 */
   summarizerServiceFactory: (saveFolderPath?: string) => SummarizerService;
   /** 플러그인 설정 getter */

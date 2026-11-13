@@ -4,13 +4,16 @@
 // 구독 피드 설정: 수동 채널 추가 방식 (채널 ID 입력 → channels.list API 조회 → 추가)
 // ============================================================
 
-import { AbstractInputSuggest, App, Notice, Plugin, PluginSettingTab, Setting, setIcon } from "obsidian";
+import {
+  AbstractInputSuggest, App, Notice, Plugin, PluginSettingTab, Setting, SettingDefinition, SettingDefinitionItem, setIcon,
+} from "obsidian";
 import {
   AI_MODEL_FIELDS, AI_PROVIDER_LABELS, AiProvider, PluginSettings, SubscriptionChannel, MonitoredChannel,
   SUMMARY_LANGUAGES, SummaryLanguage,
 } from "../models/types";
 import { t, Language } from "../i18n";
 import { AiModelClient, canUseProfile, listAvailableModels } from "../services/AiModelClient";
+import { SecretIdField, isSecretIdField } from "../services/secrets";
 import { FolderSuggest } from "./FolderSuggest";
 
 /** 불러온 모델 ID 목록을 모델 입력란의 자동완성으로 제안 */
@@ -56,6 +59,8 @@ class ModelSuggest extends AbstractInputSuggest<string> {
 export interface YouTubeSummarizerPluginInterface {
   settings: PluginSettings;
   saveSettings(): Promise<void>;
+  /** API 키 값을 비밀 저장소에서 채운 설정 (모델 호출·목록 조회·연결 테스트용) */
+  getResolvedSettings(): PluginSettings;
   /** 채널 ID로 채널 정보를 조회하는 메서드 (YouTube Data API 사용) */
   fetchChannelInfo?(channelId: string): Promise<SubscriptionChannel>;
 }
@@ -83,158 +88,193 @@ export class SettingsTab extends PluginSettingTab {
   }
 
   /**
-   * API Key 입력 필드에 눈 아이콘 토글 버튼을 추가하는 헬퍼
-   * @param inputEl - 대상 input 요소
+   * 설정 항목 정의. Obsidian이 이 목록으로 화면을 그리고 설정 검색에 색인한다.
+   * update()마다, 그리고 탭 등록 시 한 번 호출되므로 여기서는 DOM·네트워크·저장을 하지 않는다.
    */
-  private addPasswordToggle(inputEl: HTMLInputElement): void {
-    inputEl.type = "password";
-    const toggleBtn = createEl("button");
-    toggleBtn.type = "button";
-    toggleBtn.className = "clickable-icon setting-editor-extra-setting-button";
-    toggleBtn.setAttribute("aria-label", t(this.plugin.settings.language ?? "en").toggleVisibilityAria);
-    setIcon(toggleBtn, "eye");
-    toggleBtn.addEventListener("click", () => {
-      const isPassword = inputEl.type === "password";
-      inputEl.type = isPassword ? "text" : "password";
-      // 아이콘 변경: 눈 열림 ↔ 눈 닫힘
-      setIcon(toggleBtn, isPassword ? "eye-off" : "eye");
-    });
-    inputEl.parentElement?.appendChild(toggleBtn);
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    const settings = this.plugin.settings;
+    const tr = t(settings.language ?? "en");
+    const hasYoutubeKey = settings.youtubeDataApiKeySecret.trim().length > 0;
+    const secret = (name: string, desc: string, key: SecretIdField): SettingDefinition =>
+      ({ name, desc, control: { type: "secret", key } });
+
+    return [
+      // 플러그인 이름 헤딩은 심사 기준상 금지 — 설명만 표시
+      { name: "", desc: tr.settingsDescription, searchable: false, render: () => {} },
+      {
+        name: tr.languageLabel,
+        desc: tr.languageDesc,
+        render: (setting) => {
+          setting.addDropdown((dropdown) => {
+            dropdown.addOption("en", "English");
+            dropdown.addOption("ko", "한국어");
+            dropdown
+              .setValue(settings.language ?? "en")
+              .onChange(async (value: string) => {
+                this.plugin.settings.language = value as Language;
+                await this.plugin.saveSettings();
+                this.update();
+              });
+          });
+        },
+      },
+      ...this.aiDefinitions(tr, secret),
+      {
+        name: tr.saveFolderLabel,
+        desc: tr.saveFolderDesc,
+        render: (setting) => {
+          setting.addText((text) => {
+            text
+              .setPlaceholder("YouTube Summaries")
+              .setValue(this.plugin.settings.saveFolderPath)
+              .onChange(async (value: string) => {
+                this.plugin.settings.saveFolderPath = value;
+                await this.plugin.saveSettings();
+              });
+            new FolderSuggest(this.app, text.inputEl, async (value: string) => {
+              this.plugin.settings.saveFolderPath = value;
+              await this.plugin.saveSettings();
+            });
+          });
+        },
+      },
+      {
+        type: "group",
+        heading: tr.subscriptionSectionHeader,
+        items: [
+          secret(tr.youtubeDataApiKeyLabel, tr.youtubeDataApiKeyDesc, "youtubeDataApiKeySecret"),
+          // API 키가 있을 때만 채널 추가와 구독 설정을 표시
+          ...(hasYoutubeKey ? this.subscriptionDefinitions(tr) : []),
+        ],
+      },
+      ...(hasYoutubeKey && settings.monitoredChannels.length > 0
+        ? [{ type: "group" as const, heading: tr.subscriptionChannelsLabel, items: this.channelDefinitions(tr) }]
+        : []),
+      // 후원 배너. 원격 이미지를 불러오지 않도록 버튼을 CSS와 아이콘으로 그린다.
+      {
+        name: tr.sponsorLabel,
+        searchable: false,
+        render: (setting) => {
+          const bannerEl = setting.settingEl;
+          bannerEl.empty();
+          bannerEl.addClass("youtube-summarizer-sponsor");
+          bannerEl.createSpan({ text: tr.sponsorLabel });
+          const linkEl = bannerEl.createEl("a", { cls: "youtube-summarizer-sponsor-button" });
+          linkEl.setAttribute("href", SPONSOR_URL);
+          linkEl.setAttribute("target", "_blank");
+          linkEl.setAttribute("rel", "noopener");
+          setIcon(linkEl.createSpan({ cls: "youtube-summarizer-sponsor-icon" }), "coffee");
+          linkEl.createSpan({ text: "Buy me a coffee" });
+        },
+      },
+    ];
   }
 
   /**
-   * 설정 UI 렌더링
+   * 선언형 control(비밀 선택)의 저장도 플러그인의 saveSettings를 거치게 한다.
+   * 기본 구현은 저장만 하므로, 사이드바 갱신과 모델 목록 무효화가 빠진다.
    */
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-
-    const lang = this.plugin.settings.language ?? "en";
-    const tr = t(lang);
-
-    // 플러그인 이름 헤딩은 심사 기준상 금지 — 설명만 표시
-    const descEl = containerEl.createEl("p", { text: tr.settingsDescription });
-    descEl.addClass("youtube-summarizer-settings-desc");
-
-    // 언어 선택 드롭다운
-    new Setting(containerEl)
-      .setName(tr.languageLabel)
-      .setDesc(tr.languageDesc)
-      .addDropdown((dropdown) => {
-        dropdown.addOption("en", "English");
-        dropdown.addOption("ko", "한국어");
-        dropdown
-          .setValue(lang)
-          .onChange(async (value: string) => {
-            this.plugin.settings.language = value as Language;
-            await this.plugin.saveSettings();
-            this.display();
-          });
-      });
-
-    this.renderAiSettings(containerEl, tr);
-
-    // 노트 저장 폴더 경로 설정 (볼트 폴더 자동완성)
-    new Setting(containerEl)
-      .setName(tr.saveFolderLabel)
-      .setDesc(tr.saveFolderDesc)
-      .addText((text) => {
-        text
-          .setPlaceholder("YouTube Summaries")
-          .setValue(this.plugin.settings.saveFolderPath)
-          .onChange(async (value: string) => {
-            this.plugin.settings.saveFolderPath = value;
-            await this.plugin.saveSettings();
-          });
-        new FolderSuggest(this.app, text.inputEl, async (value: string) => {
-          this.plugin.settings.saveFolderPath = value;
-          await this.plugin.saveSettings();
-        });
-      });
-
-    // 구독 피드 설정 섹션 렌더링
-    this.renderSubscriptionSection(containerEl, tr);
-    this.renderSponsorBanner(containerEl, tr);
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    if (!isSecretIdField(key) || typeof value !== "string") return;
+    this.plugin.settings[key] = value;
+    this.invalidateModelList();
+    await this.plugin.saveSettings();
+    // YouTube Data API 키 유무에 따라 구독 설정 항목이 나타나거나 사라진다.
+    this.update();
   }
 
-  /** 설정 맨 아래의 후원 배너. 원격 이미지를 불러오지 않도록 버튼을 CSS와 아이콘으로 그린다 */
-  private renderSponsorBanner(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
-    const bannerEl = containerEl.createDiv({ cls: "youtube-summarizer-sponsor" });
-    bannerEl.createSpan({ text: tr.sponsorLabel });
-    const linkEl = bannerEl.createEl("a", { cls: "youtube-summarizer-sponsor-button" });
-    linkEl.setAttribute("href", SPONSOR_URL);
-    linkEl.setAttribute("target", "_blank");
-    linkEl.setAttribute("rel", "noopener");
-    setIcon(linkEl.createSpan({ cls: "youtube-summarizer-sponsor-icon" }), "coffee");
-    linkEl.createSpan({ text: "Buy me a coffee" });
-  }
-
-  private renderAiSettings(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
+  private aiDefinitions(
+    tr: ReturnType<typeof t>,
+    secret: (name: string, desc: string, key: SecretIdField) => SettingDefinition
+  ): SettingDefinition[] {
     const settings = this.plugin.settings;
-    new Setting(containerEl)
-      .setName(tr.summaryLanguageLabel)
-      .setDesc(tr.summaryLanguageDesc)
-      .addDropdown((dropdown) => {
-        for (const { code, label } of SUMMARY_LANGUAGES) dropdown.addOption(code, label);
-        dropdown
-          .setValue(settings.summaryLanguage)
-          .onChange(async (value) => {
-            this.plugin.settings.summaryLanguage = value as SummaryLanguage;
-            await this.plugin.saveSettings();
+    const keyField = {
+      openai: "openaiApiKeySecret", anthropic: "anthropicApiKeySecret", gemini: "geminiApiKeySecret",
+    } as const;
+    const authDefinitions = settings.aiProvider === "bedrock"
+      ? [
+        this.modelText(tr.bedrockRegionLabel, tr.bedrockRegionDesc, "bedrockRegion"),
+        this.modelText(tr.bedrockProfileLabel, tr.bedrockProfileDesc, "bedrockProfile"),
+        secret(tr.bedrockTokenLabel, tr.bedrockTokenDesc, "bedrockBearerTokenSecret"),
+      ]
+      : [
+        ...(settings.aiProvider === "openai"
+          ? [this.modelText(tr.openaiBaseUrlLabel, tr.openaiBaseUrlDesc, "openaiBaseUrl")]
+          : []),
+        secret(tr.modelApiKeyLabel, tr.modelApiKeyDesc, keyField[settings.aiProvider]),
+      ];
+
+    return [
+      {
+        name: tr.summaryLanguageLabel,
+        desc: tr.summaryLanguageDesc,
+        render: (setting) => {
+          setting.addDropdown((dropdown) => {
+            for (const { code, label } of SUMMARY_LANGUAGES) dropdown.addOption(code, label);
+            dropdown
+              .setValue(settings.summaryLanguage)
+              .onChange(async (value) => {
+                this.plugin.settings.summaryLanguage = value as SummaryLanguage;
+                await this.plugin.saveSettings();
+              });
           });
-      });
-    new Setting(containerEl)
-      .setName(tr.providerLabel)
-      .setDesc(tr.providerDesc)
-      .addDropdown((dropdown) => {
-        for (const [provider, label] of Object.entries(AI_PROVIDER_LABELS)) dropdown.addOption(provider, label);
-        dropdown
-          .setValue(settings.aiProvider)
-          .onChange(async (value) => {
-            this.plugin.settings.aiProvider = value as AiProvider;
-            this.invalidateModelList();
-            await this.plugin.saveSettings();
-            this.display();
+        },
+      },
+      {
+        name: tr.providerLabel,
+        desc: tr.providerDesc,
+        render: (setting) => {
+          setting.addDropdown((dropdown) => {
+            for (const [provider, label] of Object.entries(AI_PROVIDER_LABELS)) dropdown.addOption(provider, label);
+            dropdown
+              .setValue(settings.aiProvider)
+              .onChange(async (value) => {
+                this.plugin.settings.aiProvider = value as AiProvider;
+                this.invalidateModelList();
+                await this.plugin.saveSettings();
+                this.update();
+              });
           });
-      });
-
-    if (settings.aiProvider === "bedrock") {
-      this.modelText(containerEl, tr.bedrockRegionLabel, tr.bedrockRegionDesc, "bedrockRegion");
-      this.modelText(containerEl, tr.bedrockProfileLabel, tr.bedrockProfileDesc, "bedrockProfile");
-      this.modelText(containerEl, tr.bedrockTokenLabel, tr.bedrockTokenDesc, "bedrockBearerToken", true);
-    } else {
-      if (settings.aiProvider === "openai") {
-        this.modelText(containerEl, tr.openaiBaseUrlLabel, tr.openaiBaseUrlDesc, "openaiBaseUrl");
-      }
-      const keyField = { openai: "openaiApiKey", anthropic: "anthropicApiKey", gemini: "geminiApiKey" } as const;
-      this.modelText(containerEl, tr.modelApiKeyLabel, tr.modelApiKeyDesc, keyField[settings.aiProvider], true);
-    }
-
-    // 인증 정보 입력 뒤에 모델 선택 (불러오기 버튼 + 자동완성)
-    this.renderModelSetting(containerEl, tr, AI_MODEL_FIELDS[settings.aiProvider]);
-    this.renderConnectionTest(containerEl, tr);
-
-    for (const [key, label, desc, min, max] of [
-      ["maxInputChars", tr.maxInputCharsLabel, tr.maxInputCharsDesc, 1000, 1000000],
-      ["maxOutputTokens", tr.maxOutputTokensLabel, tr.maxOutputTokensDesc, 128, 128000],
-    ] as const) {
-      new Setting(containerEl).setName(label).setDesc(desc).addText((text) => {
-        text.inputEl.type = "number";
-        text.inputEl.min = String(min);
-        text.inputEl.max = String(max);
-        text.inputEl.step = "1";
-        text.setValue(String(settings[key])).onChange(async (value) => {
-          const number = Number(value);
-          if (!Number.isInteger(number) || number < min || number > max) {
-            text.inputEl.setCustomValidity(tr.errorInvalidLimits);
-            return;
-          }
-          text.inputEl.setCustomValidity("");
-          this.plugin.settings[key] = number;
-          await this.plugin.saveSettings();
-        });
-      });
-    }
+        },
+      },
+      ...authDefinitions,
+      // 인증 정보 입력 뒤에 모델 선택 (불러오기 버튼 + 자동완성)
+      {
+        name: tr.modelLabel,
+        desc: tr.modelDesc,
+        render: (setting) => this.renderModelSetting(setting, tr, AI_MODEL_FIELDS[settings.aiProvider]),
+      },
+      {
+        name: tr.connectionTestLabel,
+        desc: tr.connectionTestDesc,
+        render: (setting) => this.renderConnectionTest(setting, tr),
+      },
+      ...([
+        ["maxInputChars", tr.maxInputCharsLabel, tr.maxInputCharsDesc, 1000, 1000000],
+        ["maxOutputTokens", tr.maxOutputTokensLabel, tr.maxOutputTokensDesc, 128, 128000],
+      ] as const).map(([key, name, desc, min, max]): SettingDefinition => ({
+        name,
+        desc,
+        render: (setting) => {
+          setting.addText((text) => {
+            text.inputEl.type = "number";
+            text.inputEl.min = String(min);
+            text.inputEl.max = String(max);
+            text.inputEl.step = "1";
+            text.setValue(String(settings[key])).onChange(async (value) => {
+              const number = Number(value);
+              if (!Number.isInteger(number) || number < min || number > max) {
+                text.inputEl.setCustomValidity(tr.errorInvalidLimits);
+                return;
+              }
+              text.inputEl.setCustomValidity("");
+              this.plugin.settings[key] = number;
+              await this.plugin.saveSettings();
+            });
+          });
+        },
+      })),
+    ];
   }
 
   /**
@@ -242,12 +282,11 @@ export class SettingsTab extends PluginSettingTab {
    * 불러온 목록은 입력란 자동완성(ModelSuggest)으로 제안하고, 실패하면 Notice로 알린다
    */
   private renderModelSetting(
-    containerEl: HTMLElement,
+    modelSetting: Setting,
     tr: ReturnType<typeof t>,
     key: "bedrockModelId" | "openaiModel" | "anthropicModel" | "geminiModel"
   ): void {
     const savedModels = key === "bedrockModelId" ? this.plugin.settings.bedrockModels : [];
-    const modelSetting = new Setting(containerEl).setName(tr.modelLabel).setDesc(tr.modelDesc);
     if (savedModels.length && !this.isManualModel) {
       // 저장된 Bedrock 목록이 있으면 드롭다운으로 고르고, 목록에 없는 ID는 "직접 입력"으로 넣는다.
       modelSetting.addDropdown((dropdown) => {
@@ -258,7 +297,7 @@ export class SettingsTab extends PluginSettingTab {
           .onChange(async (value) => {
             if (value === MANUAL_MODEL_OPTION) {
               this.isManualModel = true;
-              this.display();
+              this.update();
               return;
             }
             this.plugin.settings[key] = value;
@@ -295,7 +334,7 @@ export class SettingsTab extends PluginSettingTab {
             const version = this.modelListVersion;
             button.setButtonText(tr.modelListLoading);
             try {
-              const models = await listAvailableModels({ ...this.plugin.settings });
+              const models = await listAvailableModels(this.plugin.getResolvedSettings());
               if (version !== this.modelListVersion) return;
               this.availableModels = models;
               if (key === "bedrockModelId") {
@@ -310,20 +349,18 @@ export class SettingsTab extends PluginSettingTab {
               new Notice(error instanceof Error ? error.message : tr.errorModelList);
             } finally {
               this.isLoadingModels = false;
-              this.display();
+              this.update();
             }
           });
       });
   }
 
   /** 현재 설정으로 짧은 요청을 보내 인증·모델이 동작하는지, Bedrock은 어떤 인증이 쓰였는지 알려준다 */
-  private renderConnectionTest(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
-    new Setting(containerEl)
-      .setName(tr.connectionTestLabel)
-      .setDesc(tr.connectionTestDesc)
+  private renderConnectionTest(setting: Setting, tr: ReturnType<typeof t>): void {
+    setting
       .addButton((button) => {
         button.setButtonText(tr.connectionTestButton).onClick(async () => {
-          const settings = { ...this.plugin.settings, maxOutputTokens: CONNECTION_TEST_MAX_TOKENS };
+          const settings = { ...this.plugin.getResolvedSettings(), maxOutputTokens: CONNECTION_TEST_MAX_TOKENS };
           let hasFallenBack = false;
           const client = new AiModelClient(settings, undefined, () => { hasFallenBack = true; });
           button.setDisabled(true).setButtonText(tr.connectionTesting);
@@ -353,196 +390,146 @@ export class SettingsTab extends PluginSettingTab {
   }
 
   private modelText(
-    containerEl: HTMLElement,
-    label: string,
-    description: string,
-    key: "bedrockModelId" | "bedrockRegion" | "bedrockProfile" | "bedrockBearerToken" |
-      "openaiModel" | "openaiBaseUrl" | "openaiApiKey" | "anthropicModel" | "anthropicApiKey" |
-      "geminiModel" | "geminiApiKey",
-    secret = false
-  ): void {
-    new Setting(containerEl).setName(label).setDesc(description).addText((text) => {
-      text.setValue(this.plugin.settings[key]).onChange(async (value) => {
-        this.plugin.settings[key] = value.trim();
-        this.invalidateModelList();
-        await this.plugin.saveSettings();
-      });
-      if (secret) this.addPasswordToggle(text.inputEl);
-    });
+    name: string,
+    desc: string,
+    key: "bedrockRegion" | "bedrockProfile" | "openaiBaseUrl"
+  ): SettingDefinition {
+    return {
+      name,
+      desc,
+      render: (setting) => {
+        setting.addText((text) => {
+          text.setValue(this.plugin.settings[key]).onChange(async (value) => {
+            this.plugin.settings[key] = value.trim();
+            this.invalidateModelList();
+            await this.plugin.saveSettings();
+          });
+        });
+      },
+    };
   }
 
-  /**
-   * 구독 피드 설정 섹션 렌더링
-   * YouTube Data API Key 입력 + 수동 채널 추가 UI
-   */
-  private renderSubscriptionSection(
-    containerEl: HTMLElement,
-    tr: ReturnType<typeof t>
-  ): void {
-    const hasApiKey = this.plugin.settings.youtubeDataApiKey.trim().length > 0;
-
-    // 구독 피드 섹션 헤더
-    new Setting(containerEl).setName(tr.subscriptionSectionHeader).setHeading();
-
-    // YouTube Data API Key 입력 필드 (눈 아이콘 토글로 마스킹/표시 전환)
-    const apiKeySetting = new Setting(containerEl)
-      .setName(tr.youtubeDataApiKeyLabel)
-      .setDesc(tr.youtubeDataApiKeyDesc)
-      .addText((text) => {
-        text
-          .setPlaceholder("your-youtube-data-api-key")
-          .setValue(this.plugin.settings.youtubeDataApiKey)
-          .onChange(async (value: string) => {
-            this.plugin.settings.youtubeDataApiKey = value;
-            await this.plugin.saveSettings();
-            this.display();
-          });
-        this.addPasswordToggle(text.inputEl);
-      });
-
-    // Google Cloud Console 링크 추가
-    const linkEl = createEl("a");
-    linkEl.href = "https://console.cloud.google.com/apis/credentials";
-    linkEl.textContent = "Google Cloud Console";
-    linkEl.className = "external-link";
-    apiKeySetting.descEl.append(" → ", linkEl);
-
-    // API Key가 있을 때만 채널 추가 및 목록 표시
-    if (hasApiKey) {
-      // 채널 ID 입력 + 추가 버튼
-      let channelIdInput = "";
-      new Setting(containerEl)
-        .setName(tr.addChannelLabel)
-        .setDesc(tr.addChannelDesc)
-        .addText((text) => {
-          text
-            .setPlaceholder("@rastalion_dev")
-            .onChange((value: string) => {
-              channelIdInput = value;
+  /** 구독 피드 설정: 채널 추가, 구독 저장 폴더, 채널당 영상 수 */
+  private subscriptionDefinitions(tr: ReturnType<typeof t>): SettingDefinition[] {
+    return [
+      {
+        name: tr.addChannelLabel,
+        desc: tr.addChannelDesc,
+        render: (setting) => {
+          // 채널 ID 입력 + 추가 버튼
+          let channelIdInput = "";
+          setting
+            .addText((text) => {
+              text
+                .setPlaceholder("@rastalion_dev")
+                .onChange((value: string) => {
+                  channelIdInput = value;
+                });
+            })
+            .addButton((button) => {
+              button
+                .setButtonText(this.isAddingChannel ? tr.addingChannel : tr.addChannelButton)
+                .setCta()
+                .onClick(async () => {
+                  await this.addChannel(channelIdInput);
+                });
             });
-        })
-        .addButton((button) => {
-          button
-            .setButtonText(
-              this.isAddingChannel ? tr.addingChannel : tr.addChannelButton
-            )
-            .setCta()
-            .onClick(async () => {
-              await this.addChannel(channelIdInput);
-            });
-        });
-
-      // 모니터링 채널 목록 표시
-      if (this.plugin.settings.monitoredChannels.length > 0) {
-        this.renderChannelList(containerEl, tr);
-      }
-
-      // 구독 영상 요약 저장 폴더 경로 설정 (볼트 폴더 자동완성)
-      new Setting(containerEl)
-        .setName(tr.subscriptionSaveFolderLabel)
-        .setDesc(tr.subscriptionSaveFolderDesc)
-        .addText((text) => {
-          text
-            .setPlaceholder("YouTube Subscriptions")
-            .setValue(this.plugin.settings.subscriptionSaveFolderPath)
-            .onChange(async (value: string) => {
+        },
+      },
+      {
+        name: tr.subscriptionSaveFolderLabel,
+        desc: tr.subscriptionSaveFolderDesc,
+        render: (setting) => {
+          setting.addText((text) => {
+            text
+              .setPlaceholder("YouTube Subscriptions")
+              .setValue(this.plugin.settings.subscriptionSaveFolderPath)
+              .onChange(async (value: string) => {
+                this.plugin.settings.subscriptionSaveFolderPath = value;
+                await this.plugin.saveSettings();
+              });
+            new FolderSuggest(this.app, text.inputEl, async (value: string) => {
               this.plugin.settings.subscriptionSaveFolderPath = value;
               await this.plugin.saveSettings();
             });
-          new FolderSuggest(this.app, text.inputEl, async (value: string) => {
-            this.plugin.settings.subscriptionSaveFolderPath = value;
-            await this.plugin.saveSettings();
           });
-        });
-
-      // 채널당 표시할 최신 영상 개수 슬라이더 (범위: 1~10)
-      new Setting(containerEl)
-        .setName(tr.videosPerChannelLabel)
-        .setDesc(tr.videosPerChannelDesc)
-        .addSlider((slider) => {
-          slider
-            .setLimits(1, 10, 1)
-            .setValue(this.plugin.settings.videosPerChannel)
-            .onChange(async (value: number) => {
-              // 범위 클램핑: 1~10 정수로 제한
-              const clamped = Math.min(10, Math.max(1, Math.round(value)));
-              this.plugin.settings.videosPerChannel = clamped;
-              await this.plugin.saveSettings();
-            });
-        });
-    }
+        },
+      },
+      {
+        name: tr.videosPerChannelLabel,
+        desc: tr.videosPerChannelDesc,
+        render: (setting) => {
+          // 채널당 표시할 최신 영상 개수 슬라이더 (범위: 1~10)
+          setting.addSlider((slider) => {
+            slider
+              .setLimits(1, 10, 1)
+              .setValue(this.plugin.settings.videosPerChannel)
+              .onChange(async (value: number) => {
+                // 범위 클램핑: 1~10 정수로 제한
+                const clamped = Math.min(10, Math.max(1, Math.round(value)));
+                this.plugin.settings.videosPerChannel = clamped;
+                await this.plugin.saveSettings();
+              });
+          });
+        },
+      },
+    ];
   }
 
-  /**
-   * 모니터링 채널 목록 렌더링
-   * 각 채널에 대해 채널명 + 삭제 버튼 + 저장 폴더 입력 필드 표시
-   */
-  private renderChannelList(
-    containerEl: HTMLElement,
-    tr: ReturnType<typeof t>
-  ): void {
-    // 채널 목록 레이블
-    new Setting(containerEl).setName(tr.subscriptionChannelsLabel).setHeading();
+  /** 모니터링 채널마다 채널명 + 그룹 입력 + 삭제 버튼, 그리고 채널별 저장 폴더 */
+  private channelDefinitions(tr: ReturnType<typeof t>): SettingDefinition[] {
+    const findChannel = (channelId: string): MonitoredChannel | undefined =>
+      this.plugin.settings.monitoredChannels.find((ch) => ch.channelId === channelId);
 
-    // 각 모니터링 채널에 대해 UI 생성
-    for (const channel of this.plugin.settings.monitoredChannels) {
-      // 채널명 + 그룹 입력 + 삭제 버튼
-      new Setting(containerEl)
-        .setName(channel.channelTitle)
-        .setDesc(tr.channelGroupDesc)
-        .addText((text) => {
-          text
-            .setPlaceholder(tr.channelGroupLabel)
-            .setValue(channel.group ?? "")
-            .onChange(async (value: string) => {
-              const target = this.plugin.settings.monitoredChannels.find(
-                (ch) => ch.channelId === channel.channelId
-              );
-              if (target) {
-                // 빈 문자열/공백이면 그룹 미설정으로 처리
-                const trimmed = value.trim();
-                target.group = trimmed.length > 0 ? trimmed : undefined;
-                await this.plugin.saveSettings();
-              }
+    return this.plugin.settings.monitoredChannels.flatMap((channel): SettingDefinition[] => [
+      {
+        name: channel.channelTitle,
+        desc: tr.channelGroupDesc,
+        render: (setting) => {
+          setting
+            .addText((text) => {
+              text
+                .setPlaceholder(tr.channelGroupLabel)
+                .setValue(channel.group ?? "")
+                .onChange(async (value: string) => {
+                  const target = findChannel(channel.channelId);
+                  if (!target) return;
+                  // 빈 문자열/공백이면 그룹 미설정으로 처리
+                  const trimmed = value.trim();
+                  target.group = trimmed.length > 0 ? trimmed : undefined;
+                  await this.plugin.saveSettings();
+                });
+            })
+            .addButton((button) => {
+              button
+                .setButtonText(tr.removeChannelButton)
+                .onClick(async () => {
+                  await this.removeChannel(channel.channelId);
+                });
             });
-        })
-        .addButton((button) => {
-          button
-            .setButtonText(tr.removeChannelButton)
-            .onClick(async () => {
-              await this.removeChannel(channel.channelId);
-            });
-        });
-
-      // 채널별 저장 폴더 텍스트 입력 + 볼트 폴더 자동완성
-      new Setting(containerEl)
-        .setName(tr.channelSaveFolderLabel)
-        .setDesc(tr.channelSaveFolderDesc)
-        .addText((text) => {
-          text
-            .setPlaceholder(this.plugin.settings.subscriptionSaveFolderPath)
-            .setValue(channel.saveFolderPath ?? "")
-            .onChange(async (value: string) => {
-              const target = this.plugin.settings.monitoredChannels.find(
-                (ch) => ch.channelId === channel.channelId
-              );
-              if (target) {
-                target.saveFolderPath = value;
-                await this.plugin.saveSettings();
-              }
-            });
-          // 볼트 폴더 자동완성 연결
-          new FolderSuggest(this.app, text.inputEl, async (value: string) => {
-            const target = this.plugin.settings.monitoredChannels.find(
-              (ch) => ch.channelId === channel.channelId
-            );
-            if (target) {
-              target.saveFolderPath = value;
-              await this.plugin.saveSettings();
-            }
+        },
+      },
+      {
+        name: tr.channelSaveFolderLabel,
+        desc: tr.channelSaveFolderDesc,
+        render: (setting) => {
+          const saveFolder = async (value: string): Promise<void> => {
+            const target = findChannel(channel.channelId);
+            if (!target) return;
+            target.saveFolderPath = value;
+            await this.plugin.saveSettings();
+          };
+          setting.addText((text) => {
+            text
+              .setPlaceholder(this.plugin.settings.subscriptionSaveFolderPath)
+              .setValue(channel.saveFolderPath ?? "")
+              .onChange(saveFolder);
+            // 볼트 폴더 자동완성 연결
+            new FolderSuggest(this.app, text.inputEl, saveFolder);
           });
-        });
-    }
+        },
+      },
+    ]);
   }
 
   /**
@@ -566,7 +553,7 @@ export class SettingsTab extends PluginSettingTab {
     const tr = t(lang);
 
     this.isAddingChannel = true;
-    this.display();
+    this.update();
 
     try {
       const channelInfo = await this.plugin.fetchChannelInfo(trimmed);
@@ -577,7 +564,7 @@ export class SettingsTab extends PluginSettingTab {
       );
       if (alreadyExists) {
         this.isAddingChannel = false;
-        this.display();
+        this.update();
         return;
       }
 
@@ -591,7 +578,7 @@ export class SettingsTab extends PluginSettingTab {
       await this.plugin.saveSettings();
 
       this.isAddingChannel = false;
-      this.display();
+      this.update();
     } catch (error: unknown) {
       this.isAddingChannel = false;
 
@@ -606,7 +593,7 @@ export class SettingsTab extends PluginSettingTab {
         new Notice(tr.errorFetchSubscriptions + detail, 10000);
       }
 
-      this.display();
+      this.update();
     }
   }
 
@@ -620,6 +607,6 @@ export class SettingsTab extends PluginSettingTab {
         (ch) => ch.channelId !== channelId
       );
     await this.plugin.saveSettings();
-    this.display();
+    this.update();
   }
 }
