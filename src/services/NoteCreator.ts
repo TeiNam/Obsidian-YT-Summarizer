@@ -4,7 +4,7 @@
 // YAML 프론트매터, 영상 임베딩, 요약 내용을 포함한 노트 생성
 // ============================================================
 
-import { App, TFile, TFolder } from "obsidian";
+import { App, TFile, TFolder, normalizePath } from "obsidian";
 import { NoteContent } from "../models/types";
 
 /**
@@ -82,7 +82,9 @@ export class NoteCreator {
    */
   constructor(app: App, savePath: string) {
     this.app = app;
-    this.savePath = savePath;
+    // 사용자가 입력한 폴더 경로의 중복·앞뒤 슬래시를 정리한다. 빈 경로는 볼트 루트를 뜻한다.
+    const normalized = normalizePath(savePath);
+    this.savePath = normalized === "/" ? "" : normalized;
   }
 
   /**
@@ -167,7 +169,7 @@ export class NoteCreator {
    */
   async resolveFilePath(title: string): Promise<string> {
     const safeName = sanitizeFileName(title);
-    const basePath = `${this.savePath}/${safeName}.md`;
+    const basePath = normalizePath(`${this.savePath}/${safeName}.md`);
 
     // 동일 파일명이 존재하는지 확인
     const existingFile = this.app.vault.getAbstractFileByPath(basePath);
@@ -178,7 +180,7 @@ export class NoteCreator {
 
     // 중복 시 타임스탬프 추가: {title} ({timestamp}).md
     const timestamp = Date.now();
-    return `${this.savePath}/${safeName} (${timestamp}).md`;
+    return normalizePath(`${this.savePath}/${safeName} (${timestamp}).md`);
   }
 
   /**
@@ -234,7 +236,7 @@ export class NoteCreator {
     // 업로드 날짜 우선, 없으면 오늘 날짜(YY-MM-DD)로 폴백
     const datePrefix = this.toDatePrefix(uploadDate) ?? this.getLocalDatePrefix();
     const safeName = sanitizeFileName(content.videoTitle);
-    const filePath = `${this.savePath}/${datePrefix} ${safeName}.md`;
+    const filePath = normalizePath(`${this.savePath}/${datePrefix} ${safeName}.md`);
 
     // 마크다운 콘텐츠 생성
     const markdown = this.generateMarkdown(content);

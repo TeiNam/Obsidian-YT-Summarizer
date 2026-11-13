@@ -19,6 +19,7 @@
       "ES6",
       "ES7",
       "ES2018",
+      "ES2022.Error",
       "ES2020.Intl"
     ],
     "outDir": "./dist",

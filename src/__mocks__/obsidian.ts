@@ -12,6 +12,10 @@ export const Platform = { isDesktopApp: true, isMobileApp: false };
 /**
  * addIcon 모킹 - 커스텀 아이콘 등록
  */
+/** 실제 normalizePath의 핵심 동작(슬래시 정리, 앞뒤 슬래시 제거)만 흉내 낸다 */
+export function normalizePath(path: string): string {
+  return path.replace(/[\\/]+/g, "/").replace(/^\/|\/$/g, "") || "/";
+}
 export function addIcon(_iconId: string, _svgContent: string): void {}
 
 export function setIcon(el: HTMLElement, iconId: string): void {
@@ -244,6 +248,9 @@ export class Plugin {
     const el = typeof document !== "undefined" ? document.createElement("div") : {} as HTMLElement;
     this._ribbonIcons.push({ icon: _icon, title: _title, callback: _callback });
     return el;
+  }
+  addCommand(command: any): any {
+    return command;
   }
   addSettingTab(_tab: any): void {
     this._settingTabs.push(_tab);

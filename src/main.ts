@@ -68,7 +68,16 @@ export default class YouTubeSummarizerPlugin extends Plugin {
 
     // 좌측 리본 아이콘 등록
     this.addRibbonIcon("youtube-play", "YouTube LLM Summarizer", () => {
-      this.activateView();
+      void this.activateView();
+    });
+
+    // 리본을 숨긴 사용자도 명령 팔레트에서 사이드바를 열 수 있게 한다.
+    this.addCommand({
+      id: "open-sidebar",
+      name: t(this.settings.language).commandOpenSidebar,
+      callback: () => {
+        void this.activateView();
+      },
     });
 
     // 설정 탭 추가
@@ -106,7 +115,7 @@ export default class YouTubeSummarizerPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const saved = await this.loadData();
+    const saved = (await this.loadData()) as Partial<PluginSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
     // 저장된 UI 언어가 없으면(첫 실행) 시스템 언어로 초기화
     if (!saved?.language) {
@@ -142,7 +151,7 @@ export default class YouTubeSummarizerPlugin extends Plugin {
     }
 
     if (leaf) {
-      workspace.revealLeaf(leaf);
+      await workspace.revealLeaf(leaf);
     }
   }
 }

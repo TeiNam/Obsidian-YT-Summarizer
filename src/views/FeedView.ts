@@ -96,20 +96,20 @@ export class FeedView {
 
     // 새로고침 버튼
     // 보조 동작이므로 강조 버튼 대신 오른쪽 정렬된 아이콘 버튼으로 둔다.
-    const toolbarEl = document.createElement("div");
+    const toolbarEl = createDiv();
     toolbarEl.className = "youtube-feed-toolbar";
-    const refreshBtn = document.createElement("button");
+    const refreshBtn = createEl("button");
     refreshBtn.className = "youtube-feed-refresh-btn clickable-icon";
     refreshBtn.setAttribute("aria-label", this.tr.feedRefreshButton);
     setIcon(refreshBtn, "refresh-cw");
     refreshBtn.addEventListener("click", () => {
-      this.loadFeed();
+      void this.loadFeed();
     });
     toolbarEl.appendChild(refreshBtn);
     this.containerEl.appendChild(toolbarEl);
 
     // 피드 콘텐츠 영역
-    this.contentEl = document.createElement("div");
+    this.contentEl = createDiv();
     this.contentEl.className = "youtube-feed-content";
     this.containerEl.appendChild(this.contentEl);
   }
@@ -128,7 +128,7 @@ export class FeedView {
       while (this.contentEl.firstChild) {
         this.contentEl.removeChild(this.contentEl.firstChild);
       }
-      const noChannelsMsg = document.createElement("div");
+      const noChannelsMsg = createDiv();
       noChannelsMsg.className = "youtube-feed-empty";
       noChannelsMsg.textContent = this.tr.feedNoChannels;
       this.contentEl.appendChild(noChannelsMsg);
@@ -139,7 +139,7 @@ export class FeedView {
     while (this.contentEl.firstChild) {
       this.contentEl.removeChild(this.contentEl.firstChild);
     }
-    const loadingMsg = document.createElement("div");
+    const loadingMsg = createDiv();
     loadingMsg.className = "youtube-feed-loading";
     loadingMsg.textContent = this.tr.feedLoading;
     this.contentEl.appendChild(loadingMsg);
@@ -160,7 +160,7 @@ export class FeedView {
           this.contentEl.appendChild(this.renderLoadError(fetchError));
           return;
         }
-        const emptyMsg = document.createElement("div");
+        const emptyMsg = createDiv();
         emptyMsg.className = "youtube-feed-empty";
         emptyMsg.textContent = this.tr.feedEmpty;
         this.contentEl.appendChild(emptyMsg);
@@ -196,13 +196,13 @@ export class FeedView {
     const hasNamedGroup = grouped.some((g) => g.groupName !== null);
 
     for (const { groupName, channels } of grouped) {
-      const groupEl = document.createElement("div");
+      const groupEl = createDiv();
       groupEl.className = "youtube-feed-group";
 
       // 그룹 헤더: 명명된 그룹은 그룹명, 그룹 없음 섹션은 명명 그룹이 있을 때만 표시
       const headerText = groupName ?? (hasNamedGroup ? this.tr.feedUngrouped : null);
       if (headerText) {
-        const headerEl = document.createElement("div");
+        const headerEl = createDiv();
         headerEl.className = "youtube-feed-group-header";
         headerEl.textContent = headerText;
         groupEl.appendChild(headerEl);
@@ -222,11 +222,11 @@ export class FeedView {
    * @param channel - 채널별 영상 그룹
    */
   private renderChannelGroup(channel: ChannelVideos): HTMLElement {
-    const groupEl = document.createElement("div");
+    const groupEl = createDiv();
     groupEl.className = "youtube-feed-channel-group";
 
     // 채널 제목
-    const titleEl = document.createElement("h5");
+    const titleEl = createEl("h5");
     titleEl.className = "youtube-feed-channel-title";
     titleEl.textContent = channel.channelTitle;
     groupEl.appendChild(titleEl);
@@ -244,7 +244,7 @@ export class FeedView {
     // 숨겨진 영상이 있으면 "더 보기" 버튼 표시
     const hiddenCount = channel.videos.length - visibleVideos.length;
     if (hiddenCount > 0) {
-      const moreBtn = document.createElement("button");
+      const moreBtn = createEl("button");
       moreBtn.className = "youtube-feed-show-more-btn";
       moreBtn.textContent = `${this.tr.feedShowMore} (${hiddenCount})`;
       moreBtn.addEventListener("click", () => {
@@ -276,18 +276,18 @@ export class FeedView {
    * @returns 영상 항목 DOM 요소
    */
   renderVideoItem(video: VideoItem): HTMLElement {
-    const itemEl = document.createElement("div");
+    const itemEl = createDiv();
     itemEl.className = "youtube-feed-video-item";
     itemEl.dataset.videoId = video.videoId;
 
     // 제목 + 액션을 같은 줄에 두는 헤더 행
-    const rowEl = document.createElement("div");
+    const rowEl = createDiv();
     rowEl.className = "youtube-feed-video-row";
     itemEl.appendChild(rowEl);
 
     // 영상 제목
     // 요약 전에 어떤 영상인지 유튜브에서 확인할 수 있도록 링크로 둔다.
-    const titleEl = document.createElement("a");
+    const titleEl = createEl("a");
     titleEl.className = "youtube-feed-video-title";
     titleEl.textContent = video.title;
     titleEl.href = `https://www.youtube.com/watch?v=${video.videoId}`;
@@ -296,7 +296,7 @@ export class FeedView {
     rowEl.appendChild(titleEl);
 
     // 메타 정보 (채널명, 업로드 날짜)
-    const metaEl = document.createElement("div");
+    const metaEl = createDiv();
     metaEl.className = "youtube-feed-video-meta";
     const dateStr = video.publishedAt.slice(0, 10);
     metaEl.textContent = `${video.channelTitle} · ${dateStr}`;
@@ -337,16 +337,16 @@ export class FeedView {
 
     if (status === "idle") {
       // 요약하기 버튼
-      const btn = document.createElement("button");
+      const btn = createEl("button");
       btn.className = "youtube-feed-summarize-btn";
       btn.textContent = this.tr.feedSummarizeButton;
       btn.addEventListener("click", () => {
-        this.summarizeVideo(video);
+        void this.summarizeVideo(video);
       });
       target.appendChild(btn);
     } else if (status === "summarizing") {
       // 요약 진행 중 - 비활성화된 버튼 + 상태 텍스트
-      const btn = document.createElement("button");
+      const btn = createEl("button");
       btn.className = "youtube-feed-summarize-btn";
       btn.textContent = this.tr.feedSummarizing;
       btn.disabled = true;
@@ -364,11 +364,11 @@ export class FeedView {
         "error", this.videoErrorMap.get(video.videoId) ?? this.tr.feedSummaryError, "alert-triangle"
       ));
 
-      const btn = document.createElement("button");
+      const btn = createEl("button");
       btn.className = "youtube-feed-summarize-btn";
       btn.textContent = this.tr.feedSummarizeButton;
       btn.addEventListener("click", () => {
-        this.summarizeVideo(video);
+        void this.summarizeVideo(video);
       });
       target.appendChild(btn);
     }
@@ -376,15 +376,15 @@ export class FeedView {
 
   /** 상태 표시 요소: 아이콘 + 문구. file이 있으면 문구가 그 노트를 여는 링크가 된다 */
   private createStatusEl(kind: "" | "completed" | "error", text: string, icon?: string, file?: TFile): HTMLElement {
-    const statusEl = document.createElement("span");
+    const statusEl = createSpan();
     statusEl.className = kind ? `youtube-feed-status ${kind}` : "youtube-feed-status";
     if (icon) {
-      const iconEl = document.createElement("span");
+      const iconEl = createSpan();
       iconEl.className = "youtube-feed-status-icon";
       setIcon(iconEl, icon);
       statusEl.appendChild(iconEl);
     }
-    const textEl = document.createElement(file ? "a" : "span");
+    const textEl = createEl(file ? "a" : "span");
     textEl.textContent = text;
     if (file) {
       textEl.setAttribute("href", "#");
@@ -400,7 +400,7 @@ export class FeedView {
   /** 피드를 불러오지 못한 이유를 상태 코드에 맞는 문구로 보여준다 */
   private renderLoadError(error: unknown): HTMLElement {
     const { statusCode, message } = (error ?? {}) as { statusCode?: number; message?: string };
-    const errorMsg = document.createElement("div");
+    const errorMsg = createDiv();
     errorMsg.className = "youtube-feed-empty youtube-feed-error";
     errorMsg.setAttribute("role", "alert");
     const lead = statusCode === 403 ? this.tr.errorInvalidYoutubeDataApiKey : this.tr.errorFetchSubscriptions;
@@ -477,9 +477,7 @@ export class FeedView {
 
     // 해당 영상 항목의 DOM 요소를 찾아 액션 영역만 갱신
     if (!this.contentEl) return;
-    const itemEl = this.contentEl.querySelector(
-      `[data-video-id="${videoId}"]`
-    ) as HTMLElement | null;
+    const itemEl = this.contentEl.querySelector<HTMLElement>(`[data-video-id="${videoId}"]`);
     if (!itemEl) return;
 
     // 보관된 원본 VideoItem으로 액션 영역(버튼/상태 텍스트) 갱신

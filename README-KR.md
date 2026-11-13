@@ -1,7 +1,7 @@
 # YouTube LLM Summarizer
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)
-![Obsidian](https://img.shields.io/badge/Obsidian-1.5%2B-7C3AED.svg)
+![Obsidian](https://img.shields.io/badge/Obsidian-1.6.6%2B-7C3AED.svg)
 ![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-FF9900.svg)
 ![Vitest](https://img.shields.io/badge/Vitest-1.6-6E9F18.svg)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg)
@@ -54,7 +54,7 @@ API 키 방식은 데스크톱·모바일에서 사용할 수 있습니다. **AW
 
 ## 사용법
 
-왼쪽 리본의 유튜브 아이콘을 누르면 사이드바가 열립니다. 탭은 Enter·Space와 좌우 화살표로도 전환할 수 있습니다.
+왼쪽 리본의 유튜브 아이콘을 누르거나 명령 팔레트에서 **사이드바 열기**를 실행하면 사이드바가 열립니다. 탭은 Enter·Space와 좌우 화살표로도 전환할 수 있습니다.
 
 ### URL 요약 탭
 
@@ -175,11 +175,12 @@ API 키는 볼트의 `.obsidian/plugins/youtube-llm-summarizer/data.json`에 평
 
 ```bash
 npm run dev   # 변경 감지 빌드
+npm run lint  # Obsidian 플러그인 가이드라인 검사 (eslint-plugin-obsidianmd)
 npm test      # 자막·요약·인증·노트·피드 테스트
 npm run build # 타입 검사 + 배포 번들
 ```
 
-`manifest.json`의 `version`과 같은 이름의 태그(예: `1.0.0`)를 푸시하면 GitHub Actions가 테스트·빌드 후 `main.js`, `manifest.json`, `styles.css`를 릴리스 초안에 첨부합니다.
+`manifest.json`의 `version`과 같은 이름의 태그(예: `1.0.0`)를 푸시하면 GitHub Actions가 린트·테스트·빌드와 빌드 출처 증명 생성 후 `main.js`, `manifest.json`, `styles.css`를 릴리스 초안에 첨부합니다.
 
 핵심 구현은 `YouTubeCaptionClient.ts`(자막), `AiModelClient.ts`(인증·모델 호출), `SummaryEngine.ts`(번역·요약 형식), `SummarizerService.ts`(노트 저장까지의 전체 흐름)에 있습니다.
 

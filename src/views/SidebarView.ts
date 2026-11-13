@@ -111,7 +111,7 @@ export class SidebarView extends ItemView {
     subscriptionDeps?: SubscriptionDependencies
   ): void {
     if (typeof serviceFactory === "function") {
-      this.createSummarizerService = serviceFactory as SummarizerServiceFactory;
+      this.createSummarizerService = serviceFactory;
     } else {
       this.createSummarizerService = () => serviceFactory;
     }
@@ -245,7 +245,7 @@ export class SidebarView extends ItemView {
     });
     this.urlInput.addEventListener("keydown", (event) => {
       // 한글 조합 중의 Enter는 글자 확정이므로 요약을 시작하지 않는다.
-      if (event.key === "Enter" && !event.isComposing) this.handleSummarize();
+      if (event.key === "Enter" && !event.isComposing) void this.handleSummarize();
     });
 
     // 요약 버튼 (URL 바로 아래에 배치하여 주 동선을 단순화)
@@ -255,7 +255,7 @@ export class SidebarView extends ItemView {
     });
     this.summarizeButton.addClass("mod-cta");
     this.summarizeButton.addEventListener("click", () => {
-      this.handleSummarize();
+      void this.handleSummarize();
     });
 
     // 스크립트/자막 직접 입력 영역 - 잘 안 쓰는 기능이라 기본 접힘(native <details>)
@@ -301,7 +301,7 @@ export class SidebarView extends ItemView {
     });
     this.bulkButton.addClass("mod-cta");
     this.bulkButton.addEventListener("click", () => {
-      this.handleBulkSummarize();
+      void this.handleBulkSummarize();
     });
 
     // 진행 중에만 보이는 중단 버튼: 현재 영상이 끝나면 남은 링크를 건너뛴다.
@@ -344,15 +344,15 @@ export class SidebarView extends ItemView {
     ];
     for (const [label, value] of rows) {
       const row = this.infoEl.createDiv({ cls: "youtube-summarizer-info-row" });
-      row.createEl("span", { text: label, cls: "youtube-summarizer-info-label" });
-      row.createEl("span", { text: value, cls: "youtube-summarizer-info-value" });
+      row.createSpan({ text: label, cls: "youtube-summarizer-info-label" });
+      row.createSpan({ text: value, cls: "youtube-summarizer-info-value" });
     }
     if (channels.length) {
       const listEl = this.infoEl.createEl("ul", { cls: "youtube-summarizer-info-channels" });
       for (const channel of channels) {
         const itemEl = listEl.createEl("li", { text: channel.channelTitle });
         const group = channel.group?.trim();
-        if (group) itemEl.createEl("span", { text: group, cls: "youtube-summarizer-info-channel-group" });
+        if (group) itemEl.createSpan({ text: group, cls: "youtube-summarizer-info-channel-group" });
       }
     }
     // 지금 설정으로는 요약할 수 없는 경우 이유를 바로 보여준다.
@@ -386,7 +386,7 @@ export class SidebarView extends ItemView {
     });
 
     this.feedView.render();
-    this.feedView.loadFeed();
+    void this.feedView.loadFeed();
   }
 
   /**
@@ -579,8 +579,8 @@ export class SidebarView extends ItemView {
     // 오류는 스크린 리더가 즉시 읽도록 alert로 알린다.
     el.setAttribute("role", kind === "error" ? "alert" : "status");
     if (!kind || !message) return;
-    setIcon(el.createEl("span", { cls: "youtube-summarizer-status-icon" }), STATUS_ICONS[kind]);
-    el.createEl("span", { text: message, cls: "youtube-summarizer-status-text" });
+    setIcon(el.createSpan({ cls: "youtube-summarizer-status-icon" }), STATUS_ICONS[kind]);
+    el.createSpan({ text: message, cls: "youtube-summarizer-status-text" });
   }
 
   resetForm(): void {
