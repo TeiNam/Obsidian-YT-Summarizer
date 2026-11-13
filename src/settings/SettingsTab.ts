@@ -463,7 +463,6 @@ export class SettingsTab extends PluginSettingTab {
           slider
             .setLimits(1, 10, 1)
             .setValue(this.plugin.settings.videosPerChannel)
-            .setDynamicTooltip()
             .onChange(async (value: number) => {
               // 범위 클램핑: 1~10 정수로 제한
               const clamped = Math.min(10, Math.max(1, Math.round(value)));

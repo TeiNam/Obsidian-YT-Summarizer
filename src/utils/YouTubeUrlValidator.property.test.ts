@@ -11,12 +11,13 @@ import { validateYouTubeUrl } from "./YouTubeUrlValidator";
  * 유효한 유튜브 영상 ID 생성기 (Arbitrary)
  * 유튜브 영상 ID는 11자리 영숫자, 하이픈, 언더스코어로 구성
  */
-const videoIdArbitrary = fc.stringOf(
-  fc.constantFrom(
+const videoIdArbitrary = fc.string({
+  unit: fc.constantFrom(
     ...("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".split(""))
   ),
-  { minLength: 11, maxLength: 11 }
-);
+  minLength: 11,
+  maxLength: 11,
+});
 
 /**
  * URL 프로토콜 변형 생성기

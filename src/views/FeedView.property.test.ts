@@ -46,7 +46,7 @@ function videoItemArbitrary(): fc.Arbitrary<VideoItem> {
     channelId: fc.string({ minLength: 1, maxLength: 30 }),
     channelTitle: fc.stringMatching(/^[A-Za-z0-9 ]{1,50}$/).filter((s) => s.trim().length > 0),
     // 유효한 ISO 8601 날짜 문자열 생성
-    publishedAt: fc.date({
+    publishedAt: fc.date({ noInvalidDate: true,
       min: new Date("2020-01-01T00:00:00Z"),
       max: new Date("2030-12-31T23:59:59Z"),
     }).map((d) => d.toISOString()),
@@ -115,7 +115,7 @@ function monitoredChannelArbitrary(): fc.Arbitrary<MonitoredChannel> {
     // 빈 문자열
     fc.constant(""),
     // 공백만으로 구성된 문자열
-    fc.stringOf(fc.constant(" "), { minLength: 1, maxLength: 10 })
+    fc.string({ unit: fc.constant(" "), minLength: 1, maxLength: 10 })
   );
 
   return fc.record({
@@ -176,7 +176,7 @@ describe("Feature: per-channel-save-folder, Property 1: 채널별 저장 폴더 
     const invalidPathArb = fc.oneof(
       fc.constant(undefined),
       fc.constant(""),
-      fc.stringOf(fc.constant(" "), { minLength: 1, maxLength: 10 })
+      fc.string({ unit: fc.constant(" "), minLength: 1, maxLength: 10 })
     );
 
     const channelArb = fc.record({

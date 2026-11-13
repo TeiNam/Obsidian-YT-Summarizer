@@ -1,9 +1,9 @@
 # YouTube LLM Summarizer
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.6.6%2B-7C3AED.svg)
 ![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-FF9900.svg)
-![Vitest](https://img.shields.io/badge/Vitest-1.6-6E9F18.svg)
+![Vitest](https://img.shields.io/badge/Vitest-5.1-6E9F18.svg)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 

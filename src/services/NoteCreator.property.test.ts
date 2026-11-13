@@ -27,7 +27,7 @@ describe("Feature: youtube-subscription-feed, Property 7: 날짜 접두사 파�
     const titleArbitrary = fc.string({ minLength: 0, maxLength: 200 });
 
     // 유효한 ISO 8601 날짜 문자열 생성기
-    const isoDateArbitrary = fc.date({
+    const isoDateArbitrary = fc.date({ noInvalidDate: true,
       min: new Date("2000-01-01T00:00:00Z"),
       max: new Date("2099-12-31T23:59:59Z"),
     }).map((d) => d.toISOString());
