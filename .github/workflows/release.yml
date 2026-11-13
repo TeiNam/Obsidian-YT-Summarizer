@@ -1,0 +1,31 @@
+name: Release
+
+# manifest.json의 version과 같은 태그(예: 1.0.0)를 푸시하면 릴리스 초안에 빌드 산출물을 첨부한다.
+on:
+  push:
+    tags: ["*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: 태그와 manifest 버전 일치 확인
+        run: test "$(node -p "require('./manifest.json').version")" = "${GITHUB_REF_NAME}"
+      - uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          files: |
+            main.js
+            manifest.json
+            styles.css

@@ -126,7 +126,7 @@ export class YouTubeDataApiClient {
 
     const items = data.items ?? [];
     if (items.length === 0) {
-      throw new YouTubeDataApiError("채널을 찾을 수 없습니다", 404);
+      throw new YouTubeDataApiError("Channel not found", 404);
     }
 
     const item = items[0];
@@ -187,24 +187,7 @@ export class YouTubeDataApiClient {
     const reason = errorBody?.error?.errors?.[0]?.reason;
     const apiMessage = errorBody?.error?.message;
 
-    if (status === 403) {
-      throw new YouTubeDataApiError(
-        apiMessage ?? "API Key가 유효하지 않습니다",
-        403
-      );
-    }
-
-    if (status === 429) {
-      throw new YouTubeDataApiError(
-        apiMessage ?? "API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요",
-        429
-      );
-    }
-
-    // 네트워크 오류 또는 기타 HTTP 오류
-    throw new YouTubeDataApiError(
-      apiMessage ?? `HTTP ${status} 오류 (${reason ?? "unknown"})`,
-      status
-    );
+    // 화면 문구는 호출부가 상태 코드로 번역하므로, 여기서는 API 원문이나 언어 중립 상세만 담는다.
+    throw new YouTubeDataApiError(apiMessage ?? `HTTP ${status} (${reason ?? "unknown"})`, status);
   }
 }

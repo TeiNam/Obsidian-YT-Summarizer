@@ -118,7 +118,7 @@ export class SidebarView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "YouTube Summarizer";
+    return "YouTube LLM Summarizer";
   }
 
   /**
@@ -338,7 +338,7 @@ export class SidebarView extends ItemView {
     // URL 유효성 검증
     const validation = validateYouTubeUrl(url);
     if (!validation.isValid) {
-      this.showError(validation.error ?? tr.errorInvalidUrl);
+      this.showError(validation.error === "empty" ? tr.errorEmptyUrl : tr.errorInvalidUrl);
       return;
     }
 

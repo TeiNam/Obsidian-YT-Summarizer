@@ -60,7 +60,7 @@ export default class YouTubeSummarizerPlugin extends Plugin {
     );
 
     // 좌측 리본 아이콘 등록
-    this.addRibbonIcon("youtube-play", "YouTube Summarizer", () => {
+    this.addRibbonIcon("youtube-play", "YouTube LLM Summarizer", () => {
       this.activateView();
     });
 

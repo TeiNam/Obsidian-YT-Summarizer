@@ -87,6 +87,7 @@ export interface Translations {
   stageComplete: string;
 
   // 오류/알림 메시지
+  errorEmptyUrl: string;
   errorInvalidUrl: string;
   errorNotInitialized: string;
   errorSummarizeFailed: string;
@@ -212,7 +213,7 @@ const en: Translations = {
   saveFolderLabel: "Save folder",
   saveFolderDesc: "Folder path where summary notes will be saved",
 
-  sidebarTitle: "YouTube Summarizer",
+  sidebarTitle: "YouTube LLM Summarizer",
   urlPlaceholder: "Paste a YouTube link here",
   summarizeButton: "Summarize",
   summarizingButton: "Summarizing...",
@@ -225,6 +226,7 @@ const en: Translations = {
   stageCreatingNote: "Creating note...",
   stageComplete: "Summary complete",
 
+  errorEmptyUrl: "Please enter a YouTube link",
   errorInvalidUrl: "Please enter a valid YouTube link",
   errorNotInitialized: "Plugin is not properly initialized.",
   errorSummarizeFailed: "Failed to generate summary. Please try again",
@@ -349,7 +351,7 @@ const ko: Translations = {
   saveFolderLabel: "노트 저장 폴더",
   saveFolderDesc: "요약 노트가 저장될 폴더 경로입니다",
 
-  sidebarTitle: "YouTube Summarizer",
+  sidebarTitle: "YouTube LLM Summarizer",
   urlPlaceholder: "유튜브 링크를 입력하세요",
   summarizeButton: "요약",
   summarizingButton: "요약 중...",
@@ -362,6 +364,7 @@ const ko: Translations = {
   stageCreatingNote: "노트 생성 중...",
   stageComplete: "요약이 완료되었습니다",
 
+  errorEmptyUrl: "유튜브 링크를 입력해주세요",
   errorInvalidUrl: "유효한 유튜브 링크를 입력해주세요",
   errorNotInitialized: "플러그인이 올바르게 초기화되지 않았습니다.",
   errorSummarizeFailed: "요약 생성에 실패했습니다. 다시 시도해주세요",
