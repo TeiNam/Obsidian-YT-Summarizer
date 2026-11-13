@@ -18,7 +18,7 @@
 ## 주요 기능
 
 - 자동·수동 자막 수집, 자막 직접 붙여넣기
-- Bedrock Bearer 토큰 또는 AWS 프로필·SSO 인증
+- Bedrock AWS 프로필(IAM Roles Anywhere·SSO) 우선 인증, 실패 시 Bearer 토큰 폴백
 - OpenAI 및 OpenAI 호환 서버, Anthropic Claude, Google Gemini 지원
 - 타겟 언어 자막은 바로 요약, 다른 언어 자막은 번역 후 기존 API의 장르별 공부 노트 방식으로 요약
 - 한줄 요약, 상세 내용, 핵심 인사이트, 키워드, 추가 탐색 주제
@@ -49,21 +49,30 @@ API 키 방식은 데스크톱·모바일에서 사용할 수 있습니다. **AW
 
 | 제공자 | 필요한 설정 | 호출 방식 |
 |------|------|------|
-| Amazon Bedrock · Bearer | Bedrock API 키, AWS 리전, 모델 또는 추론 프로필 ID/ARN | Converse + Bearer 인증 |
-| Amazon Bedrock · 프로필 | AWS 프로필 이름, 리전, 모델 또는 추론 프로필 ID/ARN | AWS SDK 자격 증명 + SigV4 |
+| Amazon Bedrock | AWS 리전, 모델 또는 추론 프로필 ID/ARN, AWS 프로필 이름과 Bedrock API 키 중 하나 이상 | 프로필이 있으면 AWS SDK 자격 증명 + SigV4, 없거나 자격 증명을 못 얻으면 Converse + Bearer 인증 |
 | OpenAI / OpenAI 호환 | 기본 URL, 모델 ID, API 키 | Chat Completions |
 | Anthropic Claude | 모델 ID, Anthropic API 키 | Messages |
 | Google Gemini | 모델 ID, Gemini API 키 | generateContent |
 
 모델 ID는 직접 입력할 수 있습니다. Bedrock의 기본 예시는 `us-east-1` / `us.anthropic.claude-sonnet-4-6`이며, 계정에서 접근 가능한 모델·추론 프로필과 리전을 지정해야 합니다.
 
+**모델 불러오기**를 누르면 Bedrock에서는 Claude haiku·opus·sonnet 계열별 최신 버전만 가져와 설정에 저장합니다. 저장한 목록은 버튼을 다시 누를 때까지 그대로 사용합니다.
+
+### Bedrock 인증 순서
+
+1. 데스크톱에서 **AWS 프로필**이 입력되어 있으면 그 프로필로 먼저 호출합니다.
+2. 프로필이 비어 있거나, 모바일이거나, 프로필의 자격 증명을 불러오지 못하면 **Bedrock Bearer 토큰**으로 호출합니다.
+3. 자격 증명은 받았지만 권한·모델 오류로 실패한 경우에는 Bearer로 넘어가지 않고 오류를 표시합니다.
+
 ### Bedrock Bearer 토큰
 
 Bedrock 콘솔에서 발급한 API 키를 **Bedrock Bearer 토큰**에 입력합니다. `Bearer` 접두사는 생략할 수 있습니다. IAM 액세스 키 ID나 SSO 로그인 토큰을 넣는 필드는 아닙니다.
 
-### AWS 프로필·SSO
+### AWS 프로필 (IAM Roles Anywhere·SSO)
 
-먼저 AWS CLI에서 사용할 프로필을 구성하고 로그인합니다.
+IAM Roles Anywhere는 `~/.aws/config`에 `credential_process`로 `aws_signing_helper`를 지정한 프로필을 만들고 그 이름을 입력합니다. 헬퍼와 인증서 경로는 이 컴퓨터의 절대 경로여야 합니다.
+
+SSO는 AWS CLI에서 사용할 프로필을 구성하고 로그인합니다.
 
 ```bash
 # 이미 프로필이 있으면 구성 단계는 생략
@@ -71,9 +80,9 @@ aws configure sso --profile my-bedrock
 aws sso login --profile my-bedrock
 ```
 
-플러그인에서 인증 방식을 **AWS 프로필 / SSO**로 바꾸고 `my-bedrock`을 입력합니다. SDK가 `~/.aws/config`와 SSO 캐시에서 자격 증명을 읽습니다. 기존 AWS 공유 프로필도 사용할 수 있습니다. 인증이 만료되면 같은 로그인 명령으로 갱신하세요.
+플러그인의 **AWS 프로필**에 `my-bedrock`을 입력합니다. SDK가 `~/.aws/config`와 SSO 캐시에서 자격 증명을 읽습니다. 기존 AWS 공유 프로필도 사용할 수 있습니다. 인증이 만료되면 같은 로그인 명령으로 갱신하세요.
 
-프로필을 선택하면 인증 방식을 SigV4로 고정하므로, 환경변수에 남아 있는 `AWS_BEARER_TOKEN_BEDROCK`이 선택한 프로필을 대신 사용하지 않습니다.
+프로필로 호출할 때는 인증 방식을 SigV4로 고정하므로, 환경변수에 남아 있는 `AWS_BEARER_TOKEN_BEDROCK`이 입력한 프로필을 대신 사용하지 않습니다.
 
 ### OpenAI 호환 서버 / 로컬 모델
 
@@ -90,7 +99,7 @@ HTTP는 `localhost`, `127.0.0.1`, `[::1]`만 허용합니다. 나머지 주소�
 
 ### 키 저장
 
-API 키는 볼트의 `.obsidian/plugins/obsidian-youtube-summarizer/data.json`에 평문으로 저장됩니다. 눈 아이콘의 마스킹은 화면 표시만 숨깁니다. 볼트 동기화·백업에 이 파일이 포함될 수 있습니다. SSO를 사용하면 플러그인 설정에는 프로필 이름만 저장하고 AWS 자격 증명은 기존 AWS 캐시에서 읽습니다.
+API 키는 볼트의 `.obsidian/plugins/obsidian-youtube-summarizer/data.json`에 평문으로 저장됩니다. 눈 아이콘의 마스킹은 화면 표시만 숨깁니다. 볼트 동기화·백업에 이 파일이 포함될 수 있습니다. AWS 프로필만 사용하면 플러그인 설정에는 프로필 이름만 저장하고 AWS 자격 증명은 기존 AWS 캐시에서 읽습니다.
 
 ## 자막과 요약 흐름
 

@@ -51,11 +51,12 @@ export interface PluginSettings {
   /** 요약 결과 언어 (UI 언어와 별도) */
   summaryLanguage: SummaryLanguage;
   aiProvider: AiProvider;
-  bedrockAuthMode: "bearer" | "profile";
   bedrockRegion: string;
   bedrockModelId: string;
   bedrockBearerToken: string;
   bedrockProfile: string;
+  /** "모델 불러오기"로 받아 저장해 둔 Bedrock 모델 ID 목록 */
+  bedrockModels: string[];
   openaiBaseUrl: string;
   openaiModel: string;
   openaiApiKey: string;
@@ -149,11 +150,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   apiKey: "",
   summaryLanguage: "ko",
   aiProvider: "bedrock",
-  bedrockAuthMode: "bearer",
   bedrockRegion: "us-east-1",
   bedrockModelId: "us.anthropic.claude-sonnet-4-6",
   bedrockBearerToken: "",
-  bedrockProfile: "default",
+  bedrockProfile: "",
+  bedrockModels: [],
   openaiBaseUrl: "https://api.openai.com/v1",
   openaiModel: "gpt-4.1-mini",
   openaiApiKey: "",

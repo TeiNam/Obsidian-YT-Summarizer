@@ -6,10 +6,82 @@ import type { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 
 const MODEL_TIMEOUT_MS = 180000;
 const LIST_TIMEOUT_MS = 30000;
+const MIN_PROFILE_NODE_MAJOR = 20;
+const SDK_CONNECTION_TIMEOUT_MS = 10000;
+const CLAUDE_FAMILIES = ["haiku", "opus", "sonnet"] as const;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function hasText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function bedrockToken(settings: PluginSettings): string {
+  return settings.bedrockBearerToken.trim().replace(/^Bearer(?:\s+|$)/i, "");
+}
+
+function hasProfileRuntime(): boolean {
+  const nodeMajor = typeof process === "undefined" ? 0 : Number(process.versions?.node?.split(".")[0]);
+  return Platform.isDesktopApp && Number.isFinite(nodeMajor) && nodeMajor >= MIN_PROFILE_NODE_MAJOR;
+}
+
+function canUseProfile(settings: PluginSettings): boolean {
+  return hasText(settings.bedrockProfile) && hasProfileRuntime();
+}
+
+/** 프로필을 쓸 수 없어도 Bearer 토큰이 있으면 폴백할 수 있으므로 오류가 아니다. */
+function getBedrockAuthError(settings: PluginSettings): string | undefined {
+  const tr = t(settings.language);
+  if (bedrockToken(settings) || canUseProfile(settings)) return undefined;
+  if (!hasText(settings.bedrockProfile)) return tr.errorMissingApiKey;
+  return Platform.isDesktopApp ? tr.errorProfileRuntime : tr.errorDesktopProfile;
+}
+
+/** 프로필(SSO·Roles Anywhere) 자격 증명을 얻지 못한 경우만 Bearer 폴백 대상으로 구분한다. */
+class ProfileCredentialsError extends Error {}
+
+function isCredentialsError(error: unknown): boolean {
+  return /Credentials|Token|SSO|Unauthorized/.test(error instanceof Error ? error.name : "");
+}
+
+/** 프로필 자격 증명 실패이고 토큰이 있을 때만 Bearer로 다시 시도한다. 권한·모델 오류는 다른 계정으로 넘기지 않는다. */
+function withBearerFallback<T>(settings: PluginSettings, viaProfile: () => Promise<T>, viaBearer: () => Promise<T>): Promise<T> {
+  if (!canUseProfile(settings)) return viaBearer();
+  return viaProfile().catch((error: unknown) => {
+    if (bedrockToken(settings) && error instanceof ProfileCredentialsError) return viaBearer();
+    throw error;
+  });
+}
+
+async function profileClientConfig(settings: PluginSettings, requestTimeout: number) {
+  const { fromIni } = await import("@aws-sdk/credential-provider-ini");
+  return {
+    region: settings.bedrockRegion,
+    credentials: fromIni({ profile: settings.bedrockProfile.trim(), ignoreCache: true }),
+    // 환경에 남은 AWS_BEARER_TOKEN_BEDROCK이 명시한 프로필 계정을 덮어쓰지 않게 한다.
+    authSchemePreference: ["aws.auth#sigv4"],
+    maxAttempts: 1,
+    requestHandler: { connectionTimeout: SDK_CONNECTION_TIMEOUT_MS, requestTimeout },
+  };
+}
+
+/** `claude-sonnet-4-6`, `claude-3-5-sonnet-20241022-v2:0` 두 표기에서 계열과 버전을 읽는다. */
+function parseClaudeModel(id: string): { family: string; version: number } | undefined {
+  const parts = /anthropic\.claude-([a-z0-9-]+)/.exec(id)?.[1].replace(/-\d{8}.*$/, "").split("-") ?? [];
+  const family = CLAUDE_FAMILIES.find((candidate) => parts.includes(candidate));
+  if (!family) return undefined;
+  const [major = 0, minor = 0] = parts.filter((part) => /^\d{1,2}$/.test(part)).map(Number);
+  return { family, version: major * 100 + minor };
+}
+
+/** haiku·opus·sonnet 계열마다 가장 높은 버전의 ID만 남긴다 (리전 접두사가 다른 ID는 함께 남는다). */
+function latestClaudeModels(ids: string[]): string[] {
+  const models = ids.flatMap((id) => {
+    const model = parseClaudeModel(id);
+    return model ? [{ id, ...model }] : [];
+  });
+  return models
+    .filter((model) => !models.some((other) => other.family === model.family && other.version > model.version))
+    .map((model) => model.id);
 }
 
 /** 요약과 모델 목록 조회에서 동일한 주소·인증 검증을 사용한다. */
@@ -42,16 +114,7 @@ export function getAiConfigurationError(settings: PluginSettings): string | unde
     case "bedrock":
       if (!hasText(settings.bedrockModelId)) return tr.errorMissingModel;
       if (!/^[a-z]{2}(?:-[a-z]+)+-\d+$/.test(settings.bedrockRegion)) return tr.errorInvalidRegion;
-      if (settings.bedrockAuthMode === "profile") {
-        if (!Platform.isDesktopApp) return tr.errorDesktopProfile;
-        const nodeMajor = typeof process === "undefined" ? 0 : Number(process.versions?.node?.split(".")[0]);
-        if (!Number.isFinite(nodeMajor) || nodeMajor < 20) return tr.errorProfileRuntime;
-        if (!hasText(settings.bedrockProfile)) return tr.errorMissingProfile;
-      } else if (settings.bedrockAuthMode !== "bearer" || !hasText(settings.bedrockBearerToken) ||
-        !settings.bedrockBearerToken.trim().replace(/^Bearer(?:\s+|$)/i, "")) {
-        return tr.errorMissingApiKey;
-      }
-      return undefined;
+      return getBedrockAuthError(settings);
     case "openai": {
       if (!hasText(settings.openaiModel)) return tr.errorMissingModel;
       return getOpenAiConnectionError(settings);
@@ -72,6 +135,40 @@ interface BedrockModelSummary {
   modelLifecycle?: { status?: string };
   outputModalities?: string[];
   inferenceTypesSupported?: string[];
+}
+
+interface BedrockCatalog {
+  inferenceProfileSummaries?: { inferenceProfileId?: string; status?: string }[];
+  modelSummaries?: BedrockModelSummary[];
+}
+
+/** 한쪽 조회 권한만 있는 역할·키도 있으므로 둘 중 하나만 성공해도 목록을 만든다. */
+async function mergeCatalogs(profiles: Promise<unknown>, models: Promise<unknown>): Promise<BedrockCatalog> {
+  const results = await Promise.allSettled([profiles, models]);
+  const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason as unknown] : []);
+  if (failures.length === results.length) throw failures.find(isCredentialsError) ?? failures[failures.length - 1];
+  return Object.assign({}, ...results.map((result) => result.status === "fulfilled" ? result.value : null));
+}
+
+async function listBedrockWithProfile(settings: PluginSettings): Promise<BedrockCatalog> {
+  const tr = t(settings.language);
+  const { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } = await import("@aws-sdk/client-bedrock");
+  const client = new BedrockClient(await profileClientConfig(settings, LIST_TIMEOUT_MS));
+  try {
+    return await withTimeout(
+      mergeCatalogs(
+        client.send(new ListInferenceProfilesCommand({ maxResults: 1000 })),
+        client.send(new ListFoundationModelsCommand({}))
+      ),
+      LIST_TIMEOUT_MS,
+      tr.errorModelList
+    );
+  } catch (error) {
+    if (isCredentialsError(error)) throw new ProfileCredentialsError(tr.errorProfileCredentials);
+    throw new Error(tr.errorModelList);
+  } finally {
+    client.destroy();
+  }
 }
 
 interface GeminiModelSummary {
@@ -101,29 +198,30 @@ export async function listAvailableModels(
   let ids: string[];
   switch (settings.aiProvider) {
     case "bedrock": {
-      if (settings.bedrockAuthMode !== "bearer") throw new Error(tr.errorModelListProfile);
-      const token = settings.bedrockBearerToken.trim().replace(/^Bearer(?:\s+|$)/i, "");
-      if (!token) throw new Error(tr.errorMissingApiKey);
       if (!/^[a-z]{2}(?:-[a-z]+)+-\d+$/.test(settings.bedrockRegion)) throw new Error(tr.errorInvalidRegion);
+      const authError = getBedrockAuthError(settings);
+      if (authError) throw new Error(authError);
       const domain = settings.bedrockRegion.startsWith("cn-") ? "amazonaws.com.cn" : "amazonaws.com";
       const base = `https://bedrock.${settings.bedrockRegion}.${domain}`;
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Bearer ${bedrockToken(settings)}` };
       // 최신 모델은 교차 리전 추론 프로필 ID로만 온디맨드 호출 가능한 경우가 많아 둘 다 조회한다.
-      const [profiles, models] = await Promise.all([
-        get(`${base}/inference-profiles?maxResults=1000`, headers).catch(() => null),
-        get(`${base}/foundation-models`, headers),
-      ]);
-      const profileIds = ((profiles as { inferenceProfileSummaries?: { inferenceProfileId?: string; status?: string }[] } | null)
-        ?.inferenceProfileSummaries ?? [])
+      const catalog = await withBearerFallback(settings, () => listBedrockWithProfile(settings), () => mergeCatalogs(
+        get(`${base}/inference-profiles?maxResults=1000`, headers),
+        get(`${base}/foundation-models`, headers)
+      ));
+      const profileIds = (catalog.inferenceProfileSummaries ?? [])
         .filter((profile) => profile.status === "ACTIVE")
         .map((profile) => profile.inferenceProfileId);
-      const modelIds = ((models as { modelSummaries?: BedrockModelSummary[] })?.modelSummaries ?? [])
+      const modelIds = (catalog.modelSummaries ?? [])
         .filter((model) =>
           model.modelLifecycle?.status !== "LEGACY" &&
           (model.outputModalities ?? []).includes("TEXT") &&
           (model.inferenceTypesSupported ?? []).includes("ON_DEMAND"))
         .map((model) => model.modelId);
-      ids = [...profileIds, ...modelIds].filter(hasText);
+      const allIds = [...profileIds, ...modelIds].filter(hasText);
+      const latestIds = latestClaudeModels(allIds);
+      // Claude 접근 권한이 없는 계정은 전체 목록을 그대로 보여준다.
+      ids = latestIds.length ? latestIds : allIds;
       break;
     }
     case "openai": {
@@ -205,16 +303,12 @@ export class AiModelClient {
           messages: [{ role: "user" as const, content: [{ text: prompt }] }],
           inferenceConfig: { maxTokens: settings.maxOutputTokens },
         };
-        if (settings.bedrockAuthMode === "profile") {
-          response = await this.generateWithProfile(body);
-        } else {
-          const domain = settings.bedrockRegion.startsWith("cn-") ? "amazonaws.com.cn" : "amazonaws.com";
-          response = await this.post(
-            `https://bedrock-runtime.${settings.bedrockRegion}.${domain}/model/${encodeURIComponent(settings.bedrockModelId.trim())}/converse`,
-            { Authorization: `Bearer ${settings.bedrockBearerToken.trim().replace(/^Bearer(?:\s+|$)/i, "")}` },
-            body
-          );
-        }
+        const domain = settings.bedrockRegion.startsWith("cn-") ? "amazonaws.com.cn" : "amazonaws.com";
+        response = await withBearerFallback(settings, () => this.generateWithProfile(body), () => this.post(
+          `https://bedrock-runtime.${settings.bedrockRegion}.${domain}/model/${encodeURIComponent(settings.bedrockModelId.trim())}/converse`,
+          { Authorization: `Bearer ${bedrockToken(settings)}` },
+          body
+        ));
         break;
       }
       case "openai": {
@@ -282,18 +376,10 @@ export class AiModelClient {
     body: { messages: { role: "user"; content: { text: string }[] }[]; inferenceConfig: { maxTokens: number } }
   ): Promise<ModelResponse> {
     const tr = t(this.settings.language);
-    // Node 전용 SDK는 SSO/프로필 인증을 선택했을 때만 초기화하여 모바일의 토큰 호출을 보존한다.
+    // Node 전용 SDK는 프로필을 쓸 때만 초기화하여 모바일의 토큰 호출을 보존한다.
     const { BedrockRuntimeClient, ConverseCommand } = await import("@aws-sdk/client-bedrock-runtime");
     if (!this.profileClient) {
-      const { fromIni } = await import("@aws-sdk/credential-provider-ini");
-      this.profileClient = new BedrockRuntimeClient({
-        region: this.settings.bedrockRegion,
-        credentials: fromIni({ profile: this.settings.bedrockProfile.trim(), ignoreCache: true }),
-        // 환경에 남은 AWS_BEARER_TOKEN_BEDROCK이 명시한 SSO 계정을 덮어쓰지 않게 한다.
-        authSchemePreference: ["aws.auth#sigv4"],
-        maxAttempts: 1,
-        requestHandler: { connectionTimeout: 10000, requestTimeout: MODEL_TIMEOUT_MS },
-      });
+      this.profileClient = new BedrockRuntimeClient(await profileClientConfig(this.settings, MODEL_TIMEOUT_MS));
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
@@ -308,8 +394,7 @@ export class AiModelClient {
       );
     } catch (error) {
       if (controller.signal.aborted) throw new Error(tr.errorModelTimeout);
-      const name = error instanceof Error ? error.name : "";
-      if (/Credentials|Token|SSO|Unauthorized/.test(name)) throw new Error(tr.errorProfileCredentials);
+      if (isCredentialsError(error)) throw new ProfileCredentialsError(tr.errorProfileCredentials);
       throw new Error(tr.errorModelRequest);
     } finally {
       clearTimeout(timer);

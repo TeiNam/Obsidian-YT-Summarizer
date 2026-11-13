@@ -33,10 +33,6 @@ export interface Translations {
   modelListLoading: string;
   modelListLoaded: (count: number) => string;
   errorModelList: string;
-  errorModelListProfile: string;
-  bedrockAuthLabel: string;
-  bedrockBearerOption: string;
-  bedrockProfileOption: string;
   bedrockTokenLabel: string;
   bedrockTokenDesc: string;
   bedrockRegionLabel: string;
@@ -52,7 +48,6 @@ export interface Translations {
   maxOutputTokensLabel: string;
   maxOutputTokensDesc: string;
   errorMissingModel: string;
-  errorMissingProfile: string;
   errorDesktopProfile: string;
   errorProfileRuntime: string;
   errorInvalidRegion: string;
@@ -178,18 +173,14 @@ const en: Translations = {
   modelDesc: "Enter a text model ID you can access. Claude Sonnet is recommended, e.g. claude-sonnet-4-6 (Bedrock also accepts inference profile IDs/ARNs)",
   modelListButton: "Load models",
   modelListLoading: "Loading...",
-  modelListLoaded: (count) => `Loaded ${count} models. Pick one in the model ID field.`,
-  errorModelList: "Could not load the model list. Check the API key, region and network.",
-  errorModelListProfile: "Model listing is not supported with AWS profile authentication. Enter a model ID manually.",
-  bedrockAuthLabel: "Bedrock authentication",
-  bedrockBearerOption: "API key (Bearer token)",
-  bedrockProfileOption: "AWS profile / SSO (desktop)",
+  modelListLoaded: (count) => `Loaded ${count} models. Pick one in the model ID field. The Bedrock list is saved until you load it again.`,
+  errorModelList: "Could not load the model list. Check the credentials, region and network.",
   bedrockTokenLabel: "Bedrock Bearer token",
-  bedrockTokenDesc: "Paste the Bedrock API key without the Bearer prefix. Stored in this vault's plugin data.json; masking only hides it on screen.",
+  bedrockTokenDesc: "Used when no AWS profile is set or its credentials cannot be loaded, and on mobile. Paste the Bedrock API key without the Bearer prefix. Stored in this vault's plugin data.json; masking only hides it on screen.",
   bedrockRegionLabel: "AWS region",
   bedrockRegionDesc: "Region where the selected model or inference profile is available",
   bedrockProfileLabel: "AWS profile",
-  bedrockProfileDesc: "Profile from ~/.aws/config. For SSO, first run aws sso login --profile <profile> in a terminal. The plugin uses the SDK's cached credentials.",
+  bedrockProfileDesc: "Optional, desktop only. Tried first when set (IAM Roles Anywhere credential_process or SSO); falls back to the Bearer token if credentials cannot be loaded. Profile from ~/.aws/config. For SSO, first run aws sso login --profile <profile> in a terminal. The plugin uses the SDK's cached credentials.",
   modelApiKeyLabel: "Model API key",
   modelApiKeyDesc: "Stored separately for each provider in this vault's plugin data.json. Only loopback OpenAI-compatible servers allow an empty key.",
   openaiBaseUrlLabel: "OpenAI-compatible base URL",
@@ -199,8 +190,7 @@ const en: Translations = {
   maxOutputTokensLabel: "Maximum output tokens per call",
   maxOutputTokensDesc: "128–128,000, within your model's output limit. Long translations are split. Increase this if a response is truncated.",
   errorMissingModel: "Enter a model ID in settings.",
-  errorMissingProfile: "Enter an AWS profile name in settings.",
-  errorDesktopProfile: "AWS profile / SSO authentication requires Obsidian Desktop. Use a Bearer token on mobile.",
+  errorDesktopProfile: "AWS profile authentication requires Obsidian Desktop. Enter a Bearer token for mobile.",
   errorProfileRuntime: "AWS profile authentication requires an Obsidian runtime with Node.js 20 or later. Update the Obsidian desktop installer or use a Bearer token.",
   errorInvalidRegion: "Enter a valid AWS region in settings.",
   errorInvalidBaseUrl: "Enter a valid HTTPS base URL without credentials, query parameters or a fragment. HTTP is allowed only for localhost.",
@@ -238,7 +228,7 @@ const en: Translations = {
   errorInvalidUrl: "Please enter a valid YouTube link",
   errorNotInitialized: "Plugin is not properly initialized.",
   errorSummarizeFailed: "Failed to generate summary. Please try again",
-  errorMissingApiKey: "Enter the selected AI provider's API key or choose an AWS profile in settings.",
+  errorMissingApiKey: "Enter the selected AI provider's API key or an AWS profile in settings.",
   noticeSummaryComplete: "Summary complete",
 
   // 구독 피드 설정
@@ -320,18 +310,14 @@ const ko: Translations = {
   modelDesc: "접근 가능한 텍스트 모델 ID를 입력하세요. Claude Sonnet 계열을 권장합니다 (예: claude-sonnet-4-6). Bedrock은 추론 프로필 ID/ARN도 지원합니다",
   modelListButton: "모델 불러오기",
   modelListLoading: "불러오는 중...",
-  modelListLoaded: (count) => `모델 ${count}개를 불러왔습니다. 모델 ID 입력란에서 선택하세요.`,
-  errorModelList: "모델 목록을 불러오지 못했습니다. API 키·리전·네트워크를 확인해주세요.",
-  errorModelListProfile: "AWS 프로필 인증에서는 모델 목록 조회를 지원하지 않습니다. 모델 ID를 직접 입력해주세요.",
-  bedrockAuthLabel: "Bedrock 인증 방식",
-  bedrockBearerOption: "API 키 (Bearer 토큰)",
-  bedrockProfileOption: "AWS 프로필 / SSO (데스크톱)",
+  modelListLoaded: (count) => `모델 ${count}개를 불러왔습니다. 모델 ID 입력란에서 선택하세요. Bedrock 목록은 다시 불러올 때까지 저장됩니다.`,
+  errorModelList: "모델 목록을 불러오지 못했습니다. 인증 정보·리전·네트워크를 확인해주세요.",
   bedrockTokenLabel: "Bedrock Bearer 토큰",
-  bedrockTokenDesc: "Bearer 접두사 없이 Bedrock API 키를 입력하세요. 볼트의 플러그인 data.json에 저장되며, 마스킹은 화면에서만 숨깁니다",
+  bedrockTokenDesc: "AWS 프로필이 비어 있거나 자격 증명을 불러오지 못할 때, 그리고 모바일에서 사용합니다. Bearer 접두사 없이 Bedrock API 키를 입력하세요. 볼트의 플러그인 data.json에 저장되며, 마스킹은 화면에서만 숨깁니다",
   bedrockRegionLabel: "AWS 리전",
   bedrockRegionDesc: "선택한 모델이나 추론 프로필을 사용할 수 있는 리전입니다",
   bedrockProfileLabel: "AWS 프로필",
-  bedrockProfileDesc: "~/.aws/config의 프로필 이름입니다. SSO는 터미널에서 aws sso login --profile <프로필>로 먼저 로그인하세요. SDK가 캐시된 자격 증명을 사용합니다",
+  bedrockProfileDesc: "선택 사항이며 데스크톱 전용입니다. 입력하면 먼저 시도하고(IAM Roles Anywhere credential_process·SSO), 자격 증명을 불러오지 못하면 Bearer 토큰으로 넘어갑니다. ~/.aws/config의 프로필 이름입니다. SSO는 터미널에서 aws sso login --profile <프로필>로 먼저 로그인하세요. SDK가 캐시된 자격 증명을 사용합니다",
   modelApiKeyLabel: "모델 API 키",
   modelApiKeyDesc: "볼트의 플러그인 data.json에 제공자별로 따로 저장됩니다. 로컬 PC의 OpenAI 호환 서버만 키를 비워 둘 수 있습니다",
   openaiBaseUrlLabel: "OpenAI 호환 기본 URL",
@@ -341,8 +327,7 @@ const ko: Translations = {
   maxOutputTokensLabel: "호출당 최대 출력 토큰",
   maxOutputTokensDesc: "모델의 출력 한도 이내로 설정하세요 (128~128,000). 긴 번역은 나누어 처리하며 응답이 잘리면 이 값을 늘려 재시도하세요",
   errorMissingModel: "설정에서 모델 ID를 입력해주세요.",
-  errorMissingProfile: "설정에서 AWS 프로필 이름을 입력해주세요.",
-  errorDesktopProfile: "AWS 프로필·SSO 인증은 옵시디언 데스크톱에서 사용할 수 있습니다. 모바일에서는 Bearer 토큰을 사용해주세요.",
+  errorDesktopProfile: "AWS 프로필·SSO 인증은 옵시디언 데스크톱에서 사용할 수 있습니다. 모바일에서는 Bearer 토큰을 입력해주세요.",
   errorProfileRuntime: "AWS 프로필 인증에는 Node.js 20 이상인 옵시디언 런타임이 필요합니다. 옵시디언 데스크톱 설치 프로그램을 업데이트하거나 Bearer 토큰을 사용해주세요.",
   errorInvalidRegion: "설정에서 올바른 AWS 리전을 입력해주세요.",
   errorInvalidBaseUrl: "인증 정보·쿼리·프래그먼트가 없는 HTTPS 기본 URL을 입력해주세요. HTTP는 로컬 PC 주소만 허용합니다.",
@@ -380,7 +365,7 @@ const ko: Translations = {
   errorInvalidUrl: "유효한 유튜브 링크를 입력해주세요",
   errorNotInitialized: "플러그인이 올바르게 초기화되지 않았습니다.",
   errorSummarizeFailed: "요약 생성에 실패했습니다. 다시 시도해주세요",
-  errorMissingApiKey: "설정에서 선택한 AI 제공자의 API 키를 입력하거나 AWS 프로필 인증을 선택해주세요.",
+  errorMissingApiKey: "설정에서 선택한 AI 제공자의 API 키나 AWS 프로필을 입력해주세요.",
   noticeSummaryComplete: "요약이 완료되었습니다",
 
   // 구독 피드 설정

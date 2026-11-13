@@ -232,12 +232,10 @@ describe("SettingsTab", () => {
       expect(mockPlugin.settings.bedrockBearerToken).toBe("bedrock-token");
     });
 
-    it("SSO 프로필을 저장하고 토큰은 별도로 보존한다", async () => {
+    it("프로필과 토큰 입력란을 함께 표시하고 각각 저장한다", async () => {
       settingsTab.display();
       await textByName.get(tr.bedrockTokenLabel)!("token");
-      await dropdownByName.get(tr.bedrockAuthLabel)!("profile");
       await textByName.get(tr.bedrockProfileLabel)!("my-sso");
-      expect(mockPlugin.settings.bedrockAuthMode).toBe("profile");
       expect(mockPlugin.settings.bedrockProfile).toBe("my-sso");
       expect(mockPlugin.settings.bedrockBearerToken).toBe("token");
     });
@@ -288,6 +286,10 @@ describe("SettingsTab", () => {
       vi.mocked(listAvailableModels).mockResolvedValueOnce(["new-bedrock-model"]);
       await capturedButtonCallbacks[capturedButtonCallbacks.length - 1]();
       const suggest = suggestionsByName.get(tr.modelLabel)!;
+      expect(suggest.getSuggestions("")).toEqual(["new-bedrock-model"]);
+      // Bedrock 목록은 저장되어 인증 정보를 바꿔도 유지된다.
+      expect(mockPlugin.settings.bedrockModels).toEqual(["new-bedrock-model"]);
+      await textByName.get(tr.bedrockProfileLabel)!("other-profile");
       expect(suggest.getSuggestions("")).toEqual(["new-bedrock-model"]);
       suggest.selectSuggestion("new-bedrock-model");
       expect(mockPlugin.settings.bedrockModelId).toBe("new-bedrock-model");

@@ -108,6 +108,7 @@ export default class YouTubeSummarizerPlugin extends Plugin {
     // 기본 배열을 다른 플러그인 인스턴스나 이전 설정 객체와 공유하지 않는다.
     this.settings.monitoredChannels = [...this.settings.monitoredChannels];
     this.settings.summarizedVideoIds = [...this.settings.summarizedVideoIds];
+    this.settings.bedrockModels = [...this.settings.bedrockModels];
   }
 
   async saveSettings(): Promise<void> {
