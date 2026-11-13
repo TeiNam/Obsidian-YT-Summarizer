@@ -1,7 +1,7 @@
 # YouTube LLM Summarizer
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)
-![Obsidian](https://img.shields.io/badge/Obsidian-1.5%2B-7C3AED.svg)
+![Obsidian](https://img.shields.io/badge/Obsidian-1.6.6%2B-7C3AED.svg)
 ![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-FF9900.svg)
 ![Vitest](https://img.shields.io/badge/Vitest-1.6-6E9F18.svg)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg)
@@ -54,7 +54,7 @@ API key authentication works on desktop and mobile. **AWS profile and SSO authen
 
 ## Usage
 
-Click the YouTube icon in the left ribbon to open the sidebar. You can also switch tabs with Enter, Space, and the left and right arrow keys.
+Click the YouTube icon in the left ribbon, or run **Open sidebar** from the command palette, to open the sidebar. You can also switch tabs with Enter, Space, and the left and right arrow keys.
 
 ### URL summary tab
 
@@ -175,11 +175,12 @@ Existing channels, folders, groups, and summarized-video records are kept. The o
 
 ```bash
 npm run dev   # Watch build
+npm run lint  # Obsidian plugin guidelines (eslint-plugin-obsidianmd)
 npm test      # Caption, summary, authentication, note, and feed tests
 npm run build # Type check + release bundle
 ```
 
-Pushing a tag with the same name as `version` in `manifest.json` (for example `1.0.0`) makes GitHub Actions run the tests, build, and attach `main.js`, `manifest.json`, and `styles.css` to a draft release.
+Pushing a tag with the same name as `version` in `manifest.json` (for example `1.0.0`) makes GitHub Actions run the lint and tests, build, generate a build provenance attestation, and attach `main.js`, `manifest.json`, and `styles.css` to a draft release.
 
 The core implementation lives in `YouTubeCaptionClient.ts` (captions), `AiModelClient.ts` (authentication and model calls), `SummaryEngine.ts` (translation and summary format), and `SummarizerService.ts` (the whole flow through saving the note).
 

@@ -112,8 +112,15 @@ describe("YouTubeSummarizerPlugin", () => {
       const registerViewSpy = vi.spyOn(plugin, "registerView");
       const addRibbonIconSpy = vi.spyOn(plugin, "addRibbonIcon");
       const addSettingTabSpy = vi.spyOn(plugin, "addSettingTab");
+      const addCommandSpy = vi.spyOn(plugin, "addCommand");
 
       await plugin.onload();
+
+      // 리본을 숨겨도 열 수 있도록 플러그인 ID 접두사와 기본 단축키 없는 명령을 등록한다.
+      expect(addCommandSpy).toHaveBeenCalledOnce();
+      const command = addCommandSpy.mock.calls[0][0];
+      expect(command.id).toBe("open-sidebar");
+      expect(command.hotkeys).toBeUndefined();
 
       expect(plugin.settings).toEqual(DEFAULT_SETTINGS);
       expect(registerViewSpy).toHaveBeenCalledWith(

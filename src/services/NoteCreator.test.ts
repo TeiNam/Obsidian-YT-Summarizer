@@ -132,6 +132,20 @@ describe("NoteCreator.createNote", () => {
     expect(mockApp.vault.createFolder).toHaveBeenCalledWith("YouTube Summaries");
   });
 
+  it("사용자가 입력한 폴더 경로의 중복·앞뒤 슬래시를 정리하고, 빈 경로는 볼트 루트에 저장한다", async () => {
+    await new NoteCreator(mockApp, "/학습//영상/").createNote(normalContent, "2026-09-01");
+    expect(mockApp.vault.createFolder).toHaveBeenCalledWith("학습");
+    expect(mockApp.vault.createFolder).toHaveBeenCalledWith("학습/영상");
+    expect(mockApp.vault.create).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^학습\/영상\/26-09-01 [^/]+\.md$/), expect.any(String)
+    );
+
+    await new NoteCreator(mockApp, "").createNote(normalContent, "2026-09-01");
+    expect(mockApp.vault.create).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^26-09-01 [^/]+\.md$/), expect.any(String)
+    );
+  });
+
   it("폴더가 이미 존재할 때 생성하지 않는다", async () => {
     const existingFolder = { path: "YouTube Summaries" } as TFolder;
     mockApp.vault.getAbstractFileByPath = vi.fn((p: string) =>

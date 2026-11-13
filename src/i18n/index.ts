@@ -41,6 +41,7 @@ export interface Translations {
   connectionOkFallback: string;
   noticeBearerFallback: string;
   openNoteLink: string;
+  commandOpenSidebar: string;
   infoProviderLabel: string;
   infoModelLabel: string;
   infoNotSet: string;
@@ -208,6 +209,7 @@ const en: Translations = {
   connectionOkFallback: "Connection succeeded with the Bearer token. The AWS profile credentials could not be loaded.",
   noticeBearerFallback: "Could not load AWS profile credentials. Using the Bedrock Bearer token instead.",
   openNoteLink: "Open note",
+  commandOpenSidebar: "Open sidebar",
   infoProviderLabel: "AI provider",
   infoModelLabel: "Model",
   infoNotSet: "Not set",
@@ -310,7 +312,7 @@ const en: Translations = {
   feedSummaryError: "Summary failed",
 
   // 구독 피드 오류 메시지
-  errorInvalidYoutubeDataApiKey: "YouTube Data API Key is invalid. Please check your settings",
+  errorInvalidYoutubeDataApiKey: "YouTube Data API key is invalid. Please check your settings",
   errorNetworkConnection: "Network connection error. Please check your network",
   errorFetchSubscriptions: "Failed to fetch subscriptions. Please try again",
 
@@ -370,6 +372,7 @@ const ko: Translations = {
   connectionOkFallback: "Bearer 토큰으로 연결에 성공했습니다. AWS 프로필 자격 증명은 불러오지 못했습니다.",
   noticeBearerFallback: "AWS 프로필 자격 증명을 불러오지 못해 Bedrock Bearer 토큰으로 진행합니다.",
   openNoteLink: "노트 열기",
+  commandOpenSidebar: "사이드바 열기",
   infoProviderLabel: "AI 제공자",
   infoModelLabel: "모델",
   infoNotSet: "미설정",

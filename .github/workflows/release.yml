@@ -5,12 +5,13 @@ on:
   push:
     tags: ["*"]
 
-permissions:
-  contents: write
-
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -18,10 +19,19 @@ jobs:
           node-version: 26
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: npm run build
       - name: 태그와 manifest 버전 일치 확인
         run: test "$(node -p "require('./manifest.json').version")" = "${GITHUB_REF_NAME}"
+      # Obsidian 공식 릴리스 가이드대로 산출물의 빌드 출처 증명을 만든다.
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
       - uses: softprops/action-gh-release@v3
         with:
           draft: true

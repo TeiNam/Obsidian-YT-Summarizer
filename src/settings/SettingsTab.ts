@@ -4,7 +4,7 @@
 // 구독 피드 설정: 수동 채널 추가 방식 (채널 ID 입력 → channels.list API 조회 → 추가)
 // ============================================================
 
-import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { AbstractInputSuggest, App, Notice, Plugin, PluginSettingTab, Setting, setIcon } from "obsidian";
 import {
   AI_MODEL_FIELDS, AI_PROVIDER_LABELS, AiProvider, PluginSettings, SubscriptionChannel, MonitoredChannel,
   SUMMARY_LANGUAGES, SummaryLanguage,
@@ -26,7 +26,7 @@ class ModelSuggest extends AbstractInputSuggest<string> {
     app: App,
     private textInputEl: HTMLInputElement,
     private getModels: () => string[],
-    private onPick: (value: string) => void
+    private onPick: (value: string) => void | Promise<void>
   ) {
     super(app, textInputEl);
   }
@@ -44,7 +44,7 @@ class ModelSuggest extends AbstractInputSuggest<string> {
     if (!this.getModels().includes(id)) return;
     this.textInputEl.value = id;
     this.textInputEl.trigger("input");
-    this.onPick(id);
+    void this.onPick(id);
     this.close();
   }
 }
@@ -77,7 +77,8 @@ export class SettingsTab extends PluginSettingTab {
   private isManualModel = false;
 
   constructor(app: App, plugin: YouTubeSummarizerPluginInterface) {
-    super(app, plugin as any);
+    // 테스트에서 최소 인터페이스만 주입할 수 있도록 좁은 타입으로 받고, 상위 클래스에는 Plugin으로 넘긴다.
+    super(app, plugin as unknown as Plugin);
     this.plugin = plugin;
   }
 
@@ -87,7 +88,7 @@ export class SettingsTab extends PluginSettingTab {
    */
   private addPasswordToggle(inputEl: HTMLInputElement): void {
     inputEl.type = "password";
-    const toggleBtn = document.createElement("button");
+    const toggleBtn = createEl("button");
     toggleBtn.type = "button";
     toggleBtn.className = "clickable-icon setting-editor-extra-setting-button";
     toggleBtn.setAttribute("aria-label", t(this.plugin.settings.language ?? "en").toggleVisibilityAria);
@@ -159,13 +160,13 @@ export class SettingsTab extends PluginSettingTab {
   /** 설정 맨 아래의 후원 배너. 원격 이미지를 불러오지 않도록 버튼을 CSS와 아이콘으로 그린다 */
   private renderSponsorBanner(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
     const bannerEl = containerEl.createDiv({ cls: "youtube-summarizer-sponsor" });
-    bannerEl.createEl("span", { text: tr.sponsorLabel });
+    bannerEl.createSpan({ text: tr.sponsorLabel });
     const linkEl = bannerEl.createEl("a", { cls: "youtube-summarizer-sponsor-button" });
     linkEl.setAttribute("href", SPONSOR_URL);
     linkEl.setAttribute("target", "_blank");
     linkEl.setAttribute("rel", "noopener");
-    setIcon(linkEl.createEl("span", { cls: "youtube-summarizer-sponsor-icon" }), "coffee");
-    linkEl.createEl("span", { text: "Buy me a coffee" });
+    setIcon(linkEl.createSpan({ cls: "youtube-summarizer-sponsor-icon" }), "coffee");
+    linkEl.createSpan({ text: "Buy me a coffee" });
   }
 
   private renderAiSettings(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
@@ -400,12 +401,11 @@ export class SettingsTab extends PluginSettingTab {
       });
 
     // Google Cloud Console 링크 추가
-    const linkEl = document.createElement("a");
+    const linkEl = createEl("a");
     linkEl.href = "https://console.cloud.google.com/apis/credentials";
     linkEl.textContent = "Google Cloud Console";
     linkEl.className = "external-link";
-    apiKeySetting.descEl.appendChild(document.createTextNode(" → "));
-    apiKeySetting.descEl.appendChild(linkEl);
+    apiKeySetting.descEl.append(" → ", linkEl);
 
     // API Key가 있을 때만 채널 추가 및 목록 표시
     if (hasApiKey) {

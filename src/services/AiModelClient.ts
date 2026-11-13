@@ -154,7 +154,9 @@ async function mergeCatalogs(profiles: Promise<unknown>, models: Promise<unknown
   const results = await Promise.allSettled([profiles, models]);
   const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason as unknown] : []);
   if (failures.length === results.length) throw failures.find(isCredentialsError) ?? failures[failures.length - 1];
-  return Object.assign({}, ...results.map((result) => result.status === "fulfilled" ? result.value : null));
+  const [profileCatalog, modelCatalog] = results.map((result) =>
+    result.status === "fulfilled" ? result.value as BedrockCatalog | null : null);
+  return { ...profileCatalog, ...modelCatalog };
 }
 
 async function listBedrockWithProfile(settings: PluginSettings): Promise<BedrockCatalog> {
@@ -171,8 +173,8 @@ async function listBedrockWithProfile(settings: PluginSettings): Promise<Bedrock
       tr.errorModelList
     );
   } catch (error) {
-    if (isCredentialsError(error)) throw new ProfileCredentialsError(tr.errorProfileCredentials);
-    throw new Error(tr.errorModelList);
+    if (isCredentialsError(error)) throw new ProfileCredentialsError(tr.errorProfileCredentials, { cause: error });
+    throw new Error(tr.errorModelList, { cause: error });
   } finally {
     client.destroy();
   }
@@ -281,12 +283,17 @@ interface ModelResponse {
   candidates?: { content?: { parts?: unknown }; finishReason?: string }[];
 }
 
+interface ContentBlock {
+  text?: unknown;
+  thought?: unknown;
+  type?: unknown;
+}
+
 function textBlocks(blocks: unknown): string {
   if (!Array.isArray(blocks)) return "";
-  return blocks
-    .filter((block) => block && typeof block.text === "string" && block.thought !== true &&
-      (!block.type || block.type === "text"))
-    .map((block) => block.text as string)
+  return (blocks as (ContentBlock | null)[])
+    .flatMap((block) => block && typeof block.text === "string" && block.thought !== true &&
+      (!block.type || block.type === "text") ? [block.text] : [])
     .join("\n");
 }
 
@@ -400,7 +407,7 @@ export class AiModelClient {
       this.profileClient = new BedrockRuntimeClient(await profileClientConfig(this.settings, MODEL_TIMEOUT_MS));
     }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+    const timer = window.setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
     try {
       return await withTimeout(
         this.profileClient.send(
@@ -411,11 +418,11 @@ export class AiModelClient {
         tr.errorModelTimeout
       );
     } catch (error) {
-      if (controller.signal.aborted) throw new Error(tr.errorModelTimeout);
-      if (isCredentialsError(error)) throw new ProfileCredentialsError(tr.errorProfileCredentials);
-      throw new Error(tr.errorModelRequest);
+      if (controller.signal.aborted) throw new Error(tr.errorModelTimeout, { cause: error });
+      if (isCredentialsError(error)) throw new ProfileCredentialsError(tr.errorProfileCredentials, { cause: error });
+      throw new Error(tr.errorModelRequest, { cause: error });
     } finally {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     }
   }
 
@@ -435,6 +442,6 @@ export class AiModelClient {
       throw new Error(`${tr.errorModelRequest} (HTTP ${response.status})`);
     }
     if (!response.json || typeof response.json !== "object") throw new Error(tr.errorModelEmpty);
-    return response.json as ModelResponse;
+    return response.json;
   }
 }
