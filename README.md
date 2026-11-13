@@ -1,4 +1,4 @@
-# Obsidian YouTube Summarizer
+# YouTube LLM Summarizer
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)
 ![Obsidian](https://img.shields.io/badge/Obsidian-1.5%2B-7C3AED.svg)
@@ -39,13 +39,13 @@ npm test
 npm run build
 ```
 
-`main.js`, `manifest.json`, `styles.css`를 볼트의 `.obsidian/plugins/obsidian-youtube-summarizer/`에 복사한 다음 플러그인을 활성화합니다. AWS SDK와 요약 프롬프트는 `main.js`에 포함됩니다.
+`main.js`, `manifest.json`, `styles.css`를 볼트의 `.obsidian/plugins/youtube-llm-summarizer/`에 복사한 다음 플러그인을 활성화합니다. 이전 ID(`obsidian-youtube-summarizer`) 폴더로 설치했다면 그 폴더의 `data.json`을 새 폴더로 옮겨야 설정이 유지됩니다. AWS SDK와 요약 프롬프트는 `main.js`에 포함됩니다.
 
 API 키 방식은 데스크톱·모바일에서 사용할 수 있습니다. **AWS 프로필·SSO는 Node.js 20 이상을 포함한 옵시디언 데스크톱 런타임이 필요합니다.** 런타임이 오래되었다면 옵시디언 설치 프로그램을 업데이트하세요.
 
 ## 모델 설정
 
-설정 → YouTube Summarizer에서 AI 제공자와 모델 ID를 선택합니다. 인증값과 모델 ID는 제공자마다 따로 보관됩니다. 기존 요약 서버의 API 키는 AI 제공자 키로 사용할 수 없습니다.
+설정 → YouTube LLM Summarizer에서 AI 제공자와 모델 ID를 선택합니다. 인증값과 모델 ID는 제공자마다 따로 보관됩니다. 기존 요약 서버의 API 키는 AI 제공자 키로 사용할 수 없습니다.
 
 | 제공자 | 필요한 설정 | 호출 방식 |
 |------|------|------|
@@ -99,7 +99,14 @@ HTTP는 `localhost`, `127.0.0.1`, `[::1]`만 허용합니다. 나머지 주소�
 
 ### 키 저장
 
-API 키는 볼트의 `.obsidian/plugins/obsidian-youtube-summarizer/data.json`에 평문으로 저장됩니다. 눈 아이콘의 마스킹은 화면 표시만 숨깁니다. 볼트 동기화·백업에 이 파일이 포함될 수 있습니다. AWS 프로필만 사용하면 플러그인 설정에는 프로필 이름만 저장하고 AWS 자격 증명은 기존 AWS 캐시에서 읽습니다.
+API 키는 볼트의 `.obsidian/plugins/youtube-llm-summarizer/data.json`에 평문으로 저장됩니다. 눈 아이콘의 마스킹은 화면 표시만 숨깁니다. 볼트 동기화·백업에 이 파일이 포함될 수 있습니다. AWS 프로필만 사용하면 플러그인 설정에는 프로필 이름만 저장하고 AWS 자격 증명은 기존 AWS 캐시에서 읽습니다.
+
+## 네트워크와 볼트 밖 접근
+
+- **네트워크**: 자막을 가져오기 위해 YouTube에, 번역·요약을 위해 선택한 AI 제공자(Amazon Bedrock, OpenAI 또는 지정한 호환 서버, Anthropic, Google Gemini)에 요청합니다. 구독 피드를 쓰면 YouTube Data API에도 요청합니다. 자막 본문이 선택한 AI 제공자에게 전송됩니다.
+- **계정·요금**: AI 제공자의 계정과 API 키(또는 AWS 자격 증명)가 필요하며, 사용량에 따라 제공자 요금이 발생할 수 있습니다. 플러그인 자체는 무료입니다.
+- **볼트 밖 파일**: Bedrock에 AWS 프로필을 입력한 경우에만(데스크톱) AWS SDK가 `~/.aws/config`, `~/.aws/credentials`, SSO 캐시를 읽고, 프로필에 `credential_process`가 있으면 그 명령(예: `aws_signing_helper`)을 실행합니다. 프로필을 비워 두면 볼트 밖 파일에 접근하지 않습니다.
+- **수집 없음**: 텔레메트리나 광고는 없습니다.
 
 ## 자막과 요약 흐름
 

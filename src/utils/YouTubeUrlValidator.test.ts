@@ -13,14 +13,14 @@ describe("validateYouTubeUrl", () => {
       const result = validateYouTubeUrl("");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("empty");
     });
 
     it("공백만 있는 문자열 입력 시 오류 메시지를 반환한다", () => {
       const result = validateYouTubeUrl("   ");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("empty");
     });
   });
 
@@ -88,14 +88,14 @@ describe("validateYouTubeUrl", () => {
       const result = validateYouTubeUrl("not a url");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유효한 유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("invalid");
     });
 
     it("다른 사이트 URL은 거부한다", () => {
       const result = validateYouTubeUrl("https://www.google.com");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유효한 유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("invalid");
     });
 
     it("유튜브 URL이지만 영상 ID가 없는 경우 거부한다", () => {
@@ -145,21 +145,21 @@ describe("validateYouTubeUrl - 에지 케이스", () => {
       const result = validateYouTubeUrl("\t\t");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("empty");
     });
 
     it("개행 문자만 있는 입력은 빈 입력으로 처리한다", () => {
       const result = validateYouTubeUrl("\n\n");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("empty");
     });
 
     it("혼합 공백 문자(스페이스, 탭, 개행)만 있는 입력은 빈 입력으로 처리한다", () => {
       const result = validateYouTubeUrl("  \t \n  ");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("empty");
     });
   });
 
@@ -169,7 +169,7 @@ describe("validateYouTubeUrl - 에지 케이스", () => {
       const result = validateYouTubeUrl("https://www.youtube.com");
       expect(result.isValid).toBe(false);
       expect(result.videoId).toBeNull();
-      expect(result.error).toBe("유효한 유튜브 링크를 입력해주세요");
+      expect(result.error).toBe("invalid");
     });
 
     it("youtube.com/watch만 있는 URL은 거부한다 (v 파라미터 없음)", () => {

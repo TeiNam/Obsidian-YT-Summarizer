@@ -96,7 +96,7 @@ export function validateYouTubeUrl(url: string): ValidationResult {
     return {
       isValid: false,
       videoId: null,
-      error: "유튜브 링크를 입력해주세요",
+      error: "empty",
     };
   }
 
@@ -115,6 +115,6 @@ export function validateYouTubeUrl(url: string): ValidationResult {
   return {
     isValid: false,
     videoId: null,
-    error: "유효한 유튜브 링크를 입력해주세요",
+    error: "invalid",
   };
 }

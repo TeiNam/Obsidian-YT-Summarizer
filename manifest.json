@@ -1,10 +1,11 @@
 {
-  "id": "obsidian-youtube-summarizer",
-  "name": "YouTube Summarizer",
+  "id": "youtube-llm-summarizer",
+  "name": "YouTube LLM Summarizer",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "유튜브 자막을 Bedrock·OpenAI 호환 모델·Claude·Gemini로 직접 요약하여 구조화된 노트로 저장합니다.",
+  "description": "Summarize YouTube captions into structured study notes with Amazon Bedrock, OpenAI-compatible models, Claude or Gemini.",
   "author": "teinam",
   "authorUrl": "https://github.com/teinam",
-  "isDesktopOnly": false
+  "isDesktopOnly": false,
+  "fundingUrl": "https://buymeacoffee.com/teinam"
 }

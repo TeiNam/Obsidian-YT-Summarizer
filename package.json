@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-youtube-summarizer",
+  "name": "youtube-llm-summarizer",
   "version": "1.0.0",
-  "description": "옵시디언 플러그인 - 유튜브 영상 AI 요약 노트 생성",
+  "description": "Obsidian plugin that summarizes YouTube captions into study notes with an LLM",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -16,7 +16,7 @@
     "ai",
     "note"
   ],
-  "author": "",
+  "author": "teinam",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",

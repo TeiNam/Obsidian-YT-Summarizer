@@ -89,8 +89,8 @@ export interface ValidationResult {
   isValid: boolean;
   /** 추출된 영상 ID (유효하지 않으면 null) */
   videoId: string | null;
-  /** 오류 메시지 (유효하면 null) */
-  error: string | null;
+  /** 오류 종류 (유효하면 null). 화면 문구는 호출부가 UI 언어로 번역한다 */
+  error: "empty" | "invalid" | null;
 }
 
 /**

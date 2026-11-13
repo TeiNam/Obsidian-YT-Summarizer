@@ -122,7 +122,7 @@ describe("YouTubeSummarizerPlugin", () => {
       );
       expect(addRibbonIconSpy).toHaveBeenCalledWith(
         "youtube-play",
-        "YouTube Summarizer",
+        "YouTube LLM Summarizer",
         expect.any(Function)
       );
       expect(addSettingTabSpy).toHaveBeenCalled();

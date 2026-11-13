@@ -61,7 +61,7 @@ describe("SidebarView", () => {
     });
 
     it("getDisplayText()는 사이드바 탭 표시 텍스트를 반환한다", () => {
-      expect(view.getDisplayText()).toBe("YouTube Summarizer");
+      expect(view.getDisplayText()).toBe("YouTube LLM Summarizer");
     });
   });
 
@@ -185,7 +185,7 @@ describe("SidebarView", () => {
       button.click();
       await new Promise((r) => setTimeout(r, 10));
       const status = view.contentEl.querySelector(".youtube-summarizer-status") as HTMLElement;
-      expect(status.textContent).toBe("유튜브 링크를 입력해주세요");
+      expect(status.textContent).toBe(t("en").errorEmptyUrl);
       expect(status.classList.contains("error")).toBe(true);
     });
 
@@ -196,7 +196,7 @@ describe("SidebarView", () => {
       button.click();
       await new Promise((r) => setTimeout(r, 10));
       const status = view.contentEl.querySelector(".youtube-summarizer-status") as HTMLElement;
-      expect(status.textContent).toBe("유효한 유튜브 링크를 입력해주세요");
+      expect(status.textContent).toBe(t("en").errorInvalidUrl);
     });
 
     it("의존성이 없을 때 오류 메시지를 표시한다", async () => {
