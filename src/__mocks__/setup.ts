@@ -22,6 +22,12 @@ if (typeof HTMLElement !== "undefined") {
   proto.createEl ??= function (this: HTMLElement, tag: string, options?: ElementOptions | string) {
     return this.appendChild(makeEl(tag, options));
   };
+  proto.empty ??= function (this: HTMLElement) {
+    this.replaceChildren();
+  };
+  proto.addClass ??= function (this: HTMLElement, ...classes: string[]) {
+    this.classList.add(...classes);
+  };
   for (const [name, tag] of [["createDiv", "div"], ["createSpan", "span"]] as const) {
     proto[name] ??= function (this: HTMLElement & { createEl: typeof makeEl }, options?: ElementOptions | string) {
       return this.createEl(tag, options);

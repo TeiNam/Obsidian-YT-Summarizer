@@ -4,12 +4,23 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { getLanguage } from "obsidian";
 import YouTubeSummarizerPlugin from "./main";
 import { DEFAULT_SETTINGS } from "./models/types";
 import { VIEW_TYPE_YOUTUBE_SUMMARIZER } from "./views/SidebarView";
 
 // obsidian 모듈 모킹
 vi.mock("obsidian");
+
+/** 메모리에만 저장하는 비밀 저장소 */
+function createSecretStorage() {
+  const secrets = new Map<string, string>();
+  return {
+    setSecret: (id: string, secret: string) => { secrets.set(id, secret); },
+    getSecret: (id: string) => secrets.get(id) ?? null,
+    listSecrets: () => [...secrets.keys()],
+  };
+}
 
 // App 모킹 헬퍼
 function createMockApp() {
@@ -25,6 +36,7 @@ function createMockApp() {
       revealLeaf: vi.fn(),
       getLeaf: vi.fn(),
     },
+    secretStorage: createSecretStorage(),
   } as any;
 }
 
@@ -35,6 +47,8 @@ describe("YouTubeSummarizerPlugin", () => {
     // @ts-expect-error - 테스트 환경에서 인자 없이 생성
     plugin = new YouTubeSummarizerPlugin();
     plugin.app = createMockApp();
+    // 자동 목은 undefined를 돌려주므로, 앱 언어를 navigator.language로 흉내 낸다.
+    vi.mocked(getLanguage).mockImplementation(() => globalThis.navigator?.language ?? "en");
   });
 
   it("인스턴스가 정상적으로 생성된다", () => {
@@ -190,7 +204,12 @@ describe("YouTubeSummarizerPlugin", () => {
       await plugin.loadSettings();
 
       // 저장된 구독 설정이 반영되는지 확인
-      expect(plugin.settings.youtubeDataApiKey).toBe("saved-data-api-key");
+      // 평문으로 저장돼 있던 키는 비밀 저장소로 옮기고 data.json에서는 지운다.
+      expect(plugin.settings.youtubeDataApiKey).toBe("");
+      expect(plugin.settings.youtubeDataApiKeySecret).toBe("youtube-llm-summarizer-youtube-data-key");
+      expect(plugin.app.secretStorage.getSecret("youtube-llm-summarizer-youtube-data-key")).toBe("saved-data-api-key");
+      expect(plugin.getResolvedSettings().youtubeDataApiKey).toBe("saved-data-api-key");
+      expect(vi.mocked(plugin.saveData).mock.calls.at(-1)![0]).toMatchObject({ youtubeDataApiKey: "" });
       expect(plugin.settings.monitoredChannels).toEqual(savedData.monitoredChannels);
       expect(plugin.settings.subscriptionSaveFolderPath).toBe("My Subscriptions");
       expect(plugin.settings.videosPerChannel).toBe(5);

@@ -4,12 +4,14 @@
 // 로컬 자막 요약과 모델 설정의 안내 문구
 // ============================================================
 
+import { getLanguage } from "obsidian";
+
 /** 지원 언어 타입 */
 export type Language = "en" | "ko";
 
 /** 시스템 언어에서 지원 UI 언어를 감지한다 (첫 실행 초기값용) */
 export function detectLanguage(): Language {
-  return typeof navigator !== "undefined" && navigator.language?.startsWith("ko") ? "ko" : "en";
+  return getLanguage().startsWith("ko") ? "ko" : "en";
 }
 
 /** 번역 키 인터페이스 */
@@ -21,7 +23,6 @@ export interface Translations {
   // 언어 설정
   languageLabel: string;
   languageDesc: string;
-  toggleVisibilityAria: string;
 
   // AI 모델 설정
   summaryLanguageLabel: string;
@@ -190,7 +191,6 @@ const en: Translations = {
 
   languageLabel: "Language",
   languageDesc: "Select the display language for the plugin UI",
-  toggleVisibilityAria: "Toggle visibility",
 
   summaryLanguageLabel: "Summary language",
   summaryLanguageDesc: "Language of translations and generated notes, independent of the UI language",
@@ -227,13 +227,13 @@ const en: Translations = {
   modelListLoaded: (count) => `Loaded ${count} models. Pick one in the model ID field. The Bedrock list is saved until you load it again.`,
   errorModelList: "Could not load the model list. Check the credentials, region and network.",
   bedrockTokenLabel: "Bedrock Bearer token",
-  bedrockTokenDesc: "Used when no AWS profile is set or its credentials cannot be loaded, and on mobile. Paste the Bedrock API key without the Bearer prefix. Stored in this vault's plugin data.json; masking only hides it on screen.",
+  bedrockTokenDesc: "Select the secret that holds your Bedrock API key (without the Bearer prefix). Used when no AWS profile is set or its credentials cannot be loaded, and on mobile.",
   bedrockRegionLabel: "AWS region",
   bedrockRegionDesc: "Region where the selected model or inference profile is available",
   bedrockProfileLabel: "AWS profile",
   bedrockProfileDesc: "Optional, desktop only. Tried first when set (IAM Roles Anywhere credential_process or SSO); falls back to the Bearer token if credentials cannot be loaded. Profile from ~/.aws/config. For SSO, first run aws sso login --profile <profile> in a terminal. The plugin uses the SDK's cached credentials.",
   modelApiKeyLabel: "Model API key",
-  modelApiKeyDesc: "Stored separately for each provider in this vault's plugin data.json. Only loopback OpenAI-compatible servers allow an empty key.",
+  modelApiKeyDesc: "Select the secret that holds this provider's API key. Each provider keeps its own selection. Only loopback OpenAI-compatible servers work without a key.",
   openaiBaseUrlLabel: "OpenAI-compatible base URL",
   openaiBaseUrlDesc: "Include /v1. Examples: https://api.openai.com/v1 or http://localhost:11434/v1 (Ollama). Changing the URL sends this provider's key to the new endpoint.",
   maxInputCharsLabel: "Maximum input characters",
@@ -353,7 +353,6 @@ const ko: Translations = {
 
   languageLabel: "언어 (Language)",
   languageDesc: "플러그인 UI 표시 언어를 선택합니다",
-  toggleVisibilityAria: "표시 전환",
 
   summaryLanguageLabel: "요약 언어",
   summaryLanguageDesc: "UI 언어와 별도로 번역문과 요약 노트의 언어를 선택합니다",
@@ -390,13 +389,13 @@ const ko: Translations = {
   modelListLoaded: (count) => `모델 ${count}개를 불러왔습니다. 모델 ID 입력란에서 선택하세요. Bedrock 목록은 다시 불러올 때까지 저장됩니다.`,
   errorModelList: "모델 목록을 불러오지 못했습니다. 인증 정보·리전·네트워크를 확인해주세요.",
   bedrockTokenLabel: "Bedrock Bearer 토큰",
-  bedrockTokenDesc: "AWS 프로필이 비어 있거나 자격 증명을 불러오지 못할 때, 그리고 모바일에서 사용합니다. Bearer 접두사 없이 Bedrock API 키를 입력하세요. 볼트의 플러그인 data.json에 저장되며, 마스킹은 화면에서만 숨깁니다",
+  bedrockTokenDesc: "Bedrock API 키(Bearer 접두사 제외)가 들어 있는 비밀을 선택하세요. AWS 프로필이 비어 있거나 자격 증명을 불러오지 못할 때, 그리고 모바일에서 사용합니다",
   bedrockRegionLabel: "AWS 리전",
   bedrockRegionDesc: "선택한 모델이나 추론 프로필을 사용할 수 있는 리전입니다",
   bedrockProfileLabel: "AWS 프로필",
   bedrockProfileDesc: "선택 사항이며 데스크톱 전용입니다. 입력하면 먼저 시도하고(IAM Roles Anywhere credential_process·SSO), 자격 증명을 불러오지 못하면 Bearer 토큰으로 넘어갑니다. ~/.aws/config의 프로필 이름입니다. SSO는 터미널에서 aws sso login --profile <프로필>로 먼저 로그인하세요. SDK가 캐시된 자격 증명을 사용합니다",
   modelApiKeyLabel: "모델 API 키",
-  modelApiKeyDesc: "볼트의 플러그인 data.json에 제공자별로 따로 저장됩니다. 로컬 PC의 OpenAI 호환 서버만 키를 비워 둘 수 있습니다",
+  modelApiKeyDesc: "이 제공자의 API 키가 들어 있는 비밀을 선택하세요. 제공자마다 따로 선택합니다. 로컬 OpenAI 호환 서버만 키 없이 사용할 수 있습니다",
   openaiBaseUrlLabel: "OpenAI 호환 기본 URL",
   openaiBaseUrlDesc: "/v1까지 입력하세요. 예: https://api.openai.com/v1, http://localhost:11434/v1 (Ollama). URL을 바꾸면 이 제공자의 키가 새 주소로 전송됩니다",
   maxInputCharsLabel: "최대 입력 글자 수",

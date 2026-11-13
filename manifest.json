@@ -2,7 +2,7 @@
   "id": "youtube-llm-summarizer",
   "name": "YouTube LLM Summarizer",
   "version": "1.0.0",
-  "minAppVersion": "1.6.6",
+  "minAppVersion": "1.13.2",
   "description": "Summarize YouTube captions into structured study notes with Amazon Bedrock, OpenAI-compatible models, Claude or Gemini.",
   "author": "teinam",
   "authorUrl": "https://github.com/teinam",

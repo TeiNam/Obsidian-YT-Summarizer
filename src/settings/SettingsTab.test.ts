@@ -5,7 +5,7 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { App, Notice } from "obsidian";
+import { App, Notice, Setting, type SettingDefinitionItem } from "obsidian";
 import {
   SettingsTab,
   YouTubeSummarizerPluginInterface,
@@ -55,15 +55,18 @@ vi.mock("obsidian", async (importOriginal) => {
 
   class MockSetting {
     descEl: HTMLElement;
+    settingEl: HTMLElement;
     name = "";
     constructor(containerEl: HTMLElement) {
       if (typeof document !== "undefined") {
         const el = document.createElement("div");
+        this.settingEl = el;
         this.descEl = document.createElement("div");
         el.appendChild(this.descEl);
         containerEl.appendChild(el);
       } else {
         this.descEl = {} as HTMLElement;
+        this.settingEl = {} as HTMLElement;
       }
     }
     setName(name: string): MockSetting { this.name = name; return this; }
@@ -135,6 +138,35 @@ vi.mock("obsidian", async (importOriginal) => {
   };
 });
 
+/**
+ * Obsidian이 getSettingDefinitions()로 화면을 그리는 과정을 흉내 낸다.
+ * render 항목은 (목) Setting 행에 그리고, control 항목(비밀 선택)은 값 저장 콜백으로 등록한다.
+ */
+function renderDefinitions(tab: SettingsTab): void {
+  tab.containerEl.empty();
+  const renderItem = (item: SettingDefinitionItem): void => {
+    if ("type" in item) {
+      if ("heading" in item && item.heading) new Setting(tab.containerEl).setName(item.heading).setHeading();
+      (item.items as SettingDefinitionItem[] | undefined)?.forEach(renderItem);
+      return;
+    }
+    const setting = new Setting(tab.containerEl).setName(item.name).setDesc(item.desc ?? "");
+    if ("control" in item && item.control) {
+      const { key } = item.control;
+      textByName.set(item.name, async (value) => { await tab.setControlValue(key, value); });
+    } else if ("render" in item && item.render) {
+      item.render(setting, undefined as never);
+    }
+  };
+  tab.getSettingDefinitions().forEach(renderItem);
+}
+
+function createTab(app: App, plugin: YouTubeSummarizerPluginInterface): SettingsTab {
+  const tab = new SettingsTab(app, plugin);
+  tab.update = () => renderDefinitions(tab);
+  return tab;
+}
+
 describe("SettingsTab", () => {
   let settingsTab: SettingsTab;
   let mockPlugin: YouTubeSummarizerPluginInterface;
@@ -156,13 +188,15 @@ describe("SettingsTab", () => {
     mockPlugin = {
       settings: { ...DEFAULT_SETTINGS, monitoredChannels: [] },
       saveSettings: vi.fn().mockResolvedValue(undefined),
+      // 테스트에서는 비밀 저장소 없이 설정 값을 그대로 쓴다.
+      getResolvedSettings: () => mockPlugin.settings,
     };
-    settingsTab = new SettingsTab(app, mockPlugin);
+    settingsTab = createTab(app, mockPlugin);
   });
 
   describe("display() - 설정 UI 렌더링", () => {
     it("서버 키 대신 모델 제공자·Bedrock 인증 설정을 렌더링한다", () => {
-      settingsTab.display();
+      settingsTab.update();
       expect(dropdownByName.has(tr.providerLabel)).toBe(true);
       expect(textByName.has(tr.bedrockTokenLabel)).toBe(true);
       // 제거된 요약 서버 필드가 다시 생기지 않는지 확인 (i18n 키도 삭제됨)
@@ -170,21 +204,21 @@ describe("SettingsTab", () => {
     });
 
     it("display()를 다시 호출하면 기존 내용이 비워지고 새로 렌더링된다", () => {
-      settingsTab.display();
+      settingsTab.update();
       const count = settingsTab.containerEl.children.length;
-      settingsTab.display();
+      settingsTab.update();
       const settingEls = settingsTab.containerEl.children;
       expect(settingEls.length).toBe(count);
     });
 
     it("YouTube Data API Key가 비어있으면 채널 추가 입력을 표시하지 않는다", () => {
-      settingsTab.display();
+      settingsTab.update();
       expect(textByName.has(tr.youtubeDataApiKeyLabel)).toBe(true);
       expect(textByName.has(tr.addChannelLabel)).toBe(false);
     });
 
     it("YouTube Data API Key가 비어있으면 채널 추가 버튼이 캡처되지 않는다", () => {
-      settingsTab.display();
+      settingsTab.update();
       // 모델 불러오기 + 연결 테스트 버튼만 존재
       expect(capturedButtonCallbacks.length).toBe(2);
     });
@@ -205,7 +239,7 @@ describe("SettingsTab", () => {
 
   describe("onChange 콜백을 통한 설정 저장", () => {
     beforeEach(() => {
-      settingsTab.display();
+      settingsTab.update();
     });
 
     it("언어 변경 시 설정이 저장된다", async () => {
@@ -215,8 +249,10 @@ describe("SettingsTab", () => {
     });
 
     it("API Key 변경 시 설정이 저장된다", async () => {
-      await textByName.get(tr.bedrockTokenLabel)!("test-api-key-123");
-      expect(mockPlugin.settings.bedrockBearerToken).toBe("test-api-key-123");
+      // API 키 행은 비밀 선택 컨트롤이다. 설정에는 키 값이 아니라 비밀의 이름만 저장한다.
+      await textByName.get(tr.bedrockTokenLabel)!("my-bedrock-secret");
+      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("my-bedrock-secret");
+      expect(mockPlugin.settings.bedrockBearerToken).toBe("");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
 
@@ -229,7 +265,7 @@ describe("SettingsTab", () => {
 
   describe("모델·인증 방식 전환", () => {
     it("제공자별 API 키와 모델을 따로 보존한다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       await textByName.get(tr.bedrockTokenLabel)!("bedrock-token");
       await dropdownByName.get(tr.providerLabel)!("openai");
       await textByName.get(tr.modelApiKeyLabel)!("openai-key");
@@ -238,23 +274,23 @@ describe("SettingsTab", () => {
       await textByName.get(tr.modelApiKeyLabel)!("gemini-key");
       await textByName.get(tr.modelLabel)!("gemini-model");
       await dropdownByName.get(tr.providerLabel)!("openai");
-      expect(mockPlugin.settings.openaiApiKey).toBe("openai-key");
+      expect(mockPlugin.settings.openaiApiKeySecret).toBe("openai-key");
       expect(mockPlugin.settings.openaiModel).toBe("openai-model");
-      expect(mockPlugin.settings.geminiApiKey).toBe("gemini-key");
+      expect(mockPlugin.settings.geminiApiKeySecret).toBe("gemini-key");
       expect(mockPlugin.settings.geminiModel).toBe("gemini-model");
-      expect(mockPlugin.settings.bedrockBearerToken).toBe("bedrock-token");
+      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("bedrock-token");
     });
 
     it("프로필과 토큰 입력란을 함께 표시하고 각각 저장한다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       await textByName.get(tr.bedrockTokenLabel)!("token");
       await textByName.get(tr.bedrockProfileLabel)!("my-sso");
       expect(mockPlugin.settings.bedrockProfile).toBe("my-sso");
-      expect(mockPlugin.settings.bedrockBearerToken).toBe("token");
+      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("token");
     });
 
     it("실행 도중 설정 객체가 교체되어도 최신 객체에 UI·요약 언어를 저장한다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       mockPlugin.settings = { ...mockPlugin.settings, summarizedVideoIds: ["done"] };
       await dropdownByName.get(tr.summaryLanguageLabel)!("en");
       await dropdownByName.get(tr.providerLabel)!("anthropic");
@@ -264,7 +300,7 @@ describe("SettingsTab", () => {
     });
 
     it("출력 한도의 비정상 입력은 저장하지 않는다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       for (const value of ["", "-1", "NaN", "1.5", "128001"]) {
         await textByName.get(tr.maxOutputTokensLabel)!(value);
       }
@@ -277,9 +313,11 @@ describe("SettingsTab", () => {
 
   describe("상단 설명과 하단 후원 배너", () => {
     it("설명은 맨 위에, 후원 링크는 맨 아래에 원격 이미지 없이 렌더링한다", () => {
-      settingsTab.display();
+      // 정의 목록의 첫 항목이 설명이고, 검색에는 걸리지 않는다.
+      const [description] = settingsTab.getSettingDefinitions();
+      expect(description).toMatchObject({ name: "", desc: tr.settingsDescription, searchable: false });
+      settingsTab.update();
       const container = settingsTab.containerEl;
-      expect(container.firstElementChild!.textContent).toBe(tr.settingsDescription);
       const banner = container.lastElementChild!;
       expect(banner.classList.contains("youtube-summarizer-sponsor")).toBe(true);
       expect(banner.textContent).toContain(tr.sponsorLabel);
@@ -290,7 +328,7 @@ describe("SettingsTab", () => {
 
   describe("연결 테스트", () => {
     it("성공 시 실제로 쓰인 인증 방식을, 실패 시 오류 문구를 알린다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       const test = buttonByName.get(tr.connectionTestLabel)!;
       connection.generate.mockResolvedValue("OK");
       connection.canUseProfile.mockReturnValue(true);
@@ -316,7 +354,7 @@ describe("SettingsTab", () => {
         reject = fail;
       }));
       mockPlugin.settings.aiProvider = "openai";
-      settingsTab.display();
+      settingsTab.update();
       const loading = buttonByName.get(tr.modelLabel)!();
       await dropdownByName.get(tr.providerLabel)!("bedrock");
       if (outcome === "success") resolve(["gpt-4.1-mini"]);
@@ -346,7 +384,7 @@ describe("SettingsTab", () => {
 
     it("주소·인증 정보 변경 시 이미 표시한 제안과 진행 중인 조회를 모두 무효화한다", async () => {
       mockPlugin.settings.aiProvider = "openai";
-      settingsTab.display();
+      settingsTab.update();
       vi.mocked(listAvailableModels).mockResolvedValueOnce(["old-model"]);
       await buttonByName.get(tr.modelLabel)!();
       const oldSuggest = suggestionsByName.get(tr.modelLabel)!;
@@ -371,24 +409,24 @@ describe("SettingsTab", () => {
   // ============================================================
   describe("구독 피드 설정 - API Key 입력 시", () => {
     beforeEach(() => {
-      mockPlugin.settings.youtubeDataApiKey = "test-youtube-data-api-key";
+      mockPlugin.settings.youtubeDataApiKeySecret = "youtube-data-key-secret";
       mockPlugin.fetchChannelInfo = vi.fn().mockResolvedValue({
         channelId: "UC_test",
         title: "테스트 채널",
         thumbnailUrl: "https://example.com/thumb.jpg",
         description: "설명",
       });
-      settingsTab = new SettingsTab(app, mockPlugin);
+      settingsTab = createTab(app, mockPlugin);
     });
 
     it("YouTube Data API Key가 있으면 채널 추가 버튼이 표시된다", () => {
-      settingsTab.display();
+      settingsTab.update();
       // 모델 불러오기 + 연결 테스트 + 채널 추가 버튼
       expect(capturedButtonCallbacks.length).toBe(3);
     });
 
     it("YouTube Data API Key가 있으면 채널 ID 입력 + 구독 저장폴더가 추가된다", () => {
-      settingsTab.display();
+      settingsTab.update();
       expect(textByName.has(tr.addChannelLabel)).toBe(true);
       expect(textByName.has(tr.subscriptionSaveFolderLabel)).toBe(true);
     });
@@ -406,9 +444,9 @@ describe("SettingsTab", () => {
     };
 
     beforeEach(() => {
-      mockPlugin.settings.youtubeDataApiKey = "test-youtube-data-api-key";
+      mockPlugin.settings.youtubeDataApiKeySecret = "youtube-data-key-secret";
       mockPlugin.fetchChannelInfo = vi.fn().mockResolvedValue(mockChannelInfo);
-      settingsTab = new SettingsTab(app, mockPlugin);
+      settingsTab = createTab(app, mockPlugin);
     });
 
     it("addChannel 호출 시 fetchChannelInfo가 호출된다", async () => {
@@ -475,7 +513,7 @@ describe("SettingsTab", () => {
   // ============================================================
   describe("채널 삭제", () => {
     beforeEach(() => {
-      mockPlugin.settings.youtubeDataApiKey = "test-youtube-data-api-key";
+      mockPlugin.settings.youtubeDataApiKeySecret = "youtube-data-key-secret";
       mockPlugin.settings.monitoredChannels = [
         {
           channelId: "UC_channel_1",
@@ -489,7 +527,7 @@ describe("SettingsTab", () => {
         },
       ];
       mockPlugin.fetchChannelInfo = vi.fn();
-      settingsTab = new SettingsTab(app, mockPlugin);
+      settingsTab = createTab(app, mockPlugin);
     });
 
     it("removeChannel 호출 시 해당 채널이 제거된다", async () => {
@@ -512,7 +550,7 @@ describe("SettingsTab", () => {
   // ============================================================
   describe("채널별 저장 폴더 설정", () => {
     beforeEach(() => {
-      mockPlugin.settings.youtubeDataApiKey = "test-youtube-data-api-key";
+      mockPlugin.settings.youtubeDataApiKeySecret = "youtube-data-key-secret";
       mockPlugin.settings.monitoredChannels = [
         {
           channelId: "UC_channel_1",
@@ -521,17 +559,17 @@ describe("SettingsTab", () => {
         },
       ];
       mockPlugin.fetchChannelInfo = vi.fn();
-      settingsTab = new SettingsTab(app, mockPlugin);
+      settingsTab = createTab(app, mockPlugin);
     });
 
     it("모니터링 중인 채널에 삭제 버튼과 저장 폴더 입력 필드가 표시된다", () => {
-      settingsTab.display();
+      settingsTab.update();
       // 모델 불러오기 + 연결 테스트 + 채널 추가 + 삭제 버튼 = 4개
       expect(capturedButtonCallbacks.length).toBe(4);
     });
 
     it("채널별 저장 폴더 텍스트 입력 변경 시 saveFolderPath가 업데이트된다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       await textByName.get(tr.channelSaveFolderLabel)!("Custom Channel Folder");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
@@ -542,7 +580,7 @@ describe("SettingsTab", () => {
     });
 
     it("채널 그룹 텍스트 입력 변경 시 group이 업데이트된다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       await textByName.get(mockPlugin.settings.monitoredChannels[0].channelTitle)!("주식");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
@@ -554,7 +592,7 @@ describe("SettingsTab", () => {
 
     it("채널 그룹을 공백으로 비우면 group이 undefined가 된다", async () => {
       mockPlugin.settings.monitoredChannels[0].group = "주식";
-      settingsTab.display();
+      settingsTab.update();
       await textByName.get(mockPlugin.settings.monitoredChannels[0].channelTitle)!("   ");
 
       const updatedChannel = mockPlugin.settings.monitoredChannels.find(
@@ -569,9 +607,9 @@ describe("SettingsTab", () => {
   // ============================================================
   describe("videosPerChannel 설정", () => {
     beforeEach(() => {
-      mockPlugin.settings.youtubeDataApiKey = "test-youtube-data-api-key";
+      mockPlugin.settings.youtubeDataApiKeySecret = "youtube-data-key-secret";
       mockPlugin.fetchChannelInfo = vi.fn();
-      settingsTab = new SettingsTab(app, mockPlugin);
+      settingsTab = createTab(app, mockPlugin);
     });
 
     it("기본값이 6이다", () => {
@@ -580,13 +618,13 @@ describe("SettingsTab", () => {
     });
 
     it("YouTube Data API Key가 있으면 videosPerChannel 슬라이더가 렌더링된다", () => {
-      settingsTab.display();
+      settingsTab.update();
       // 슬라이더 콜백이 1개 캡처되어야 한다
       expect(capturedSliderCallbacks.length).toBe(1);
     });
 
     it("슬라이더 값 변경 시 settings.videosPerChannel이 업데이트된다", async () => {
-      settingsTab.display();
+      settingsTab.update();
       await capturedSliderCallbacks[0](5);
       expect(mockPlugin.settings.videosPerChannel).toBe(5);
       expect(mockPlugin.saveSettings).toHaveBeenCalled();

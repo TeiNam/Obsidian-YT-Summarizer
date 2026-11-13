@@ -73,6 +73,15 @@ export interface PluginSettings {
   bedrockProfile: string;
   /** "모델 불러오기"로 받아 저장해 둔 Bedrock 모델 ID 목록 */
   bedrockModels: string[];
+  /**
+   * API 키가 들어 있는 비밀(SecretStorage)의 이름. 키 값 자체는 data.json에 저장하지 않는다.
+   * 짝이 되는 값 필드(bedrockBearerToken 등)는 실행 중에만 채워진다 (services/secrets.ts).
+   */
+  bedrockBearerTokenSecret: string;
+  openaiApiKeySecret: string;
+  anthropicApiKeySecret: string;
+  geminiApiKeySecret: string;
+  youtubeDataApiKeySecret: string;
   openaiBaseUrl: string;
   openaiModel: string;
   openaiApiKey: string;
@@ -171,6 +180,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   bedrockBearerToken: "",
   bedrockProfile: "",
   bedrockModels: [],
+  bedrockBearerTokenSecret: "",
+  openaiApiKeySecret: "",
+  anthropicApiKeySecret: "",
+  geminiApiKeySecret: "",
+  youtubeDataApiKeySecret: "",
   openaiBaseUrl: "https://api.openai.com/v1",
   openaiModel: "gpt-4.1-mini",
   openaiApiKey: "",

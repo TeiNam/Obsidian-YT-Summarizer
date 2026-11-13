@@ -447,15 +447,6 @@
    설정 탭: 상단 설명과 하단 후원 배너
    ============================================================ */
 
-.youtube-summarizer-settings-desc {
-  margin: 0 0 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  font-size: var(--font-ui-small);
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
 .youtube-summarizer-sponsor {
   display: flex;
   flex-direction: column;
