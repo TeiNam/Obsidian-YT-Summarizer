@@ -16,6 +16,7 @@ export function detectLanguage(): Language {
 export interface Translations {
   // 설정 탭 헤더
   settingsDescription: string;
+  sponsorLabel: string;
 
   // 언어 설정
   languageLabel: string;
@@ -40,6 +41,15 @@ export interface Translations {
   connectionOkFallback: string;
   noticeBearerFallback: string;
   openNoteLink: string;
+  infoProviderLabel: string;
+  infoModelLabel: string;
+  infoNotSet: string;
+  infoFeedLabel: string;
+  infoFeedReady: string;
+  infoFeedNeedsKey: string;
+  infoFeedNoChannels: string;
+  infoChannelsLabel: string;
+  infoGroupsLabel: string;
   bulkCancelButton: string;
   bulkSkipped: (count: number) => string;
   bulkCancelled: (count: number) => string;
@@ -174,7 +184,8 @@ export interface Translations {
 
 /** 영어 번역 */
 const en: Translations = {
-  settingsDescription: "Captions are fetched from YouTube and sent directly to the AI provider you select below.",
+  settingsDescription: "Turns YouTube captions into structured study notes. Captions are fetched from YouTube and sent directly to the AI provider you select below; nothing is sent until you start a summary.",
+  sponsorLabel: "If you find this plugin useful, consider supporting its development.",
 
   languageLabel: "Language",
   languageDesc: "Select the display language for the plugin UI",
@@ -197,6 +208,15 @@ const en: Translations = {
   connectionOkFallback: "Connection succeeded with the Bearer token. The AWS profile credentials could not be loaded.",
   noticeBearerFallback: "Could not load AWS profile credentials. Using the Bedrock Bearer token instead.",
   openNoteLink: "Open note",
+  infoProviderLabel: "AI provider",
+  infoModelLabel: "Model",
+  infoNotSet: "Not set",
+  infoFeedLabel: "Subscription feed",
+  infoFeedReady: "Ready",
+  infoFeedNeedsKey: "YouTube Data API key required",
+  infoFeedNoChannels: "No channels added",
+  infoChannelsLabel: "Channels",
+  infoGroupsLabel: "Groups",
   bulkCancelButton: "Stop after current video",
   bulkSkipped: (count) => `${count} line(s) are not YouTube links and were skipped.`,
   bulkCancelled: (count) => `Stopped. ${count} link(s) were not processed.`,
@@ -326,7 +346,8 @@ const en: Translations = {
 
 /** 한국어 번역 */
 const ko: Translations = {
-  settingsDescription: "유튜브에서 자막을 가져와 아래에서 선택한 AI 제공자에게 직접 보냅니다.",
+  settingsDescription: "유튜브 자막을 구조화된 공부 노트로 만들어 줍니다. 자막은 유튜브에서 가져와 아래에서 선택한 AI 제공자에게 직접 보내며, 요약을 시작하기 전에는 아무것도 전송하지 않습니다.",
+  sponsorLabel: "이 플러그인이 유용하다면 개발을 후원해 주세요.",
 
   languageLabel: "언어 (Language)",
   languageDesc: "플러그인 UI 표시 언어를 선택합니다",
@@ -349,6 +370,15 @@ const ko: Translations = {
   connectionOkFallback: "Bearer 토큰으로 연결에 성공했습니다. AWS 프로필 자격 증명은 불러오지 못했습니다.",
   noticeBearerFallback: "AWS 프로필 자격 증명을 불러오지 못해 Bedrock Bearer 토큰으로 진행합니다.",
   openNoteLink: "노트 열기",
+  infoProviderLabel: "AI 제공자",
+  infoModelLabel: "모델",
+  infoNotSet: "미설정",
+  infoFeedLabel: "구독 피드",
+  infoFeedReady: "사용 가능",
+  infoFeedNeedsKey: "YouTube Data API 키 필요",
+  infoFeedNoChannels: "추가된 채널 없음",
+  infoChannelsLabel: "구독 채널",
+  infoGroupsLabel: "그룹",
   bulkCancelButton: "현재 영상까지만 하고 중단",
   bulkSkipped: (count) => `유튜브 링크가 아닌 ${count}줄은 건너뛰었습니다.`,
   bulkCancelled: (count) => `중단했습니다. 남은 링크 ${count}개는 처리하지 않았습니다.`,
@@ -435,7 +465,7 @@ const ko: Translations = {
   feedRefreshButton: "새로고침",
   feedLoading: "피드를 불러오는 중...",
   feedEmpty: "새로운 영상이 없습니다",
-  feedNoChannels: "아직 채널이 없습니다. 설정 → YouTube LLM Summarizer → 모니터링 채널에서 추가해주세요.",
+  feedNoChannels: "아직 채널이 없습니다. 설정 → YouTube LLM Summarizer → 모니터링 채널 목록에서 추가해주세요.",
   feedSummarizeButton: "요약하기",
   feedSummarizing: "요약 중...",
   feedSummarized: "요약 완료",

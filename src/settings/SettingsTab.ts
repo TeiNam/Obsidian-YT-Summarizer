@@ -6,7 +6,7 @@
 
 import { AbstractInputSuggest, App, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import {
-  AiProvider, PluginSettings, SubscriptionChannel, MonitoredChannel,
+  AI_MODEL_FIELDS, AI_PROVIDER_LABELS, AiProvider, PluginSettings, SubscriptionChannel, MonitoredChannel,
   SUMMARY_LANGUAGES, SummaryLanguage,
 } from "../models/types";
 import { t, Language } from "../i18n";
@@ -14,6 +14,7 @@ import { AiModelClient, canUseProfile, listAvailableModels } from "../services/A
 import { FolderSuggest } from "./FolderSuggest";
 
 /** 불러온 모델 ID 목록을 모델 입력란의 자동완성으로 제안 */
+const SPONSOR_URL = "https://buymeacoffee.com/teinam";
 const MANUAL_MODEL_OPTION = "__manual__";
 /** 연결 테스트는 설정이 허용하는 최소 출력 토큰만 쓴다 */
 const CONNECTION_TEST_MAX_TOKENS = 128;
@@ -112,7 +113,7 @@ export class SettingsTab extends PluginSettingTab {
 
     // 플러그인 이름 헤딩은 심사 기준상 금지 — 설명만 표시
     const descEl = containerEl.createEl("p", { text: tr.settingsDescription });
-    descEl.addClass("setting-item-description");
+    descEl.addClass("youtube-summarizer-settings-desc");
 
     // 언어 선택 드롭다운
     new Setting(containerEl)
@@ -152,6 +153,19 @@ export class SettingsTab extends PluginSettingTab {
 
     // 구독 피드 설정 섹션 렌더링
     this.renderSubscriptionSection(containerEl, tr);
+    this.renderSponsorBanner(containerEl, tr);
+  }
+
+  /** 설정 맨 아래의 후원 배너. 원격 이미지를 불러오지 않도록 버튼을 CSS와 아이콘으로 그린다 */
+  private renderSponsorBanner(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
+    const bannerEl = containerEl.createDiv({ cls: "youtube-summarizer-sponsor" });
+    bannerEl.createEl("span", { text: tr.sponsorLabel });
+    const linkEl = bannerEl.createEl("a", { cls: "youtube-summarizer-sponsor-button" });
+    linkEl.setAttribute("href", SPONSOR_URL);
+    linkEl.setAttribute("target", "_blank");
+    linkEl.setAttribute("rel", "noopener");
+    setIcon(linkEl.createEl("span", { cls: "youtube-summarizer-sponsor-icon" }), "coffee");
+    linkEl.createEl("span", { text: "Buy me a coffee" });
   }
 
   private renderAiSettings(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
@@ -172,10 +186,8 @@ export class SettingsTab extends PluginSettingTab {
       .setName(tr.providerLabel)
       .setDesc(tr.providerDesc)
       .addDropdown((dropdown) => {
-        dropdown.addOption("bedrock", "Amazon Bedrock")
-          .addOption("openai", "OpenAI / OpenAI-compatible")
-          .addOption("anthropic", "Anthropic Claude")
-          .addOption("gemini", "Google Gemini")
+        for (const [provider, label] of Object.entries(AI_PROVIDER_LABELS)) dropdown.addOption(provider, label);
+        dropdown
           .setValue(settings.aiProvider)
           .onChange(async (value) => {
             this.plugin.settings.aiProvider = value as AiProvider;
@@ -184,11 +196,6 @@ export class SettingsTab extends PluginSettingTab {
             this.display();
           });
       });
-
-    const modelField = {
-      bedrock: "bedrockModelId", openai: "openaiModel",
-      anthropic: "anthropicModel", gemini: "geminiModel",
-    } as const;
 
     if (settings.aiProvider === "bedrock") {
       this.modelText(containerEl, tr.bedrockRegionLabel, tr.bedrockRegionDesc, "bedrockRegion");
@@ -203,7 +210,7 @@ export class SettingsTab extends PluginSettingTab {
     }
 
     // 인증 정보 입력 뒤에 모델 선택 (불러오기 버튼 + 자동완성)
-    this.renderModelSetting(containerEl, tr, modelField[settings.aiProvider]);
+    this.renderModelSetting(containerEl, tr, AI_MODEL_FIELDS[settings.aiProvider]);
     this.renderConnectionTest(containerEl, tr);
 
     for (const [key, label, desc, min, max] of [

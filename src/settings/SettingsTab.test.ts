@@ -275,6 +275,19 @@ describe("SettingsTab", () => {
     });
   });
 
+  describe("상단 설명과 하단 후원 배너", () => {
+    it("설명은 맨 위에, 후원 링크는 맨 아래에 원격 이미지 없이 렌더링한다", () => {
+      settingsTab.display();
+      const container = settingsTab.containerEl;
+      expect(container.firstElementChild!.textContent).toBe(tr.settingsDescription);
+      const banner = container.lastElementChild!;
+      expect(banner.classList.contains("youtube-summarizer-sponsor")).toBe(true);
+      expect(banner.textContent).toContain(tr.sponsorLabel);
+      expect(banner.querySelector("a")!.getAttribute("href")).toBe("https://buymeacoffee.com/teinam");
+      expect(container.querySelector("img")).toBeNull();
+    });
+  });
+
   describe("연결 테스트", () => {
     it("성공 시 실제로 쓰인 인증 방식을, 실패 시 오류 문구를 알린다", async () => {
       settingsTab.display();

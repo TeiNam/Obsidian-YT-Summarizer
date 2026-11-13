@@ -7,6 +7,22 @@ import { Language } from "../i18n";
 
 export type AiProvider = "bedrock" | "openai" | "anthropic" | "gemini";
 
+/** 설정 드롭다운과 사이드바 상태 표시에 함께 쓰는 제공자 이름 (고유명사라 번역하지 않는다) */
+export const AI_PROVIDER_LABELS: Record<AiProvider, string> = {
+  bedrock: "Amazon Bedrock",
+  openai: "OpenAI / OpenAI-compatible",
+  anthropic: "Anthropic Claude",
+  gemini: "Google Gemini",
+};
+
+/** 제공자별 모델 ID가 저장되는 설정 필드 */
+export const AI_MODEL_FIELDS = {
+  bedrock: "bedrockModelId",
+  openai: "openaiModel",
+  anthropic: "anthropicModel",
+  gemini: "geminiModel",
+} as const;
+
 /**
  * 요약(타겟) 언어 목록 — 주요 20개 언어
  * code는 자막 선호 언어 매칭, english는 프롬프트 지시, label은 설정 UI 표기에 사용
