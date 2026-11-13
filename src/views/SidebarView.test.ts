@@ -570,6 +570,43 @@ describe("SidebarView", () => {
     });
   });
 
+  describe("UI 언어 변경", () => {
+    it("설정에서 언어를 바꾸면 사이드바 전체를 새 언어로 다시 그리고 입력값은 유지한다", async () => {
+      const ko = t("ko");
+      let settings: PluginSettings = { ...DEFAULT_SETTINGS, language: "ko", bedrockBearerToken: "test-key" };
+      view.setDependencies({ summarize: vi.fn() } as unknown as SummarizerService, () => settings);
+      await view.onOpen();
+      const texts = () => ({
+        tabs: Array.from(view.contentEl.querySelectorAll(".youtube-summarizer-tab"), (el) => el.textContent),
+        buttons: Array.from(view.contentEl.querySelectorAll("button"), (el) => el.textContent),
+        summaries: Array.from(view.contentEl.querySelectorAll("summary"), (el) => el.textContent),
+        placeholder: view.contentEl.querySelector("input")!.placeholder,
+        infoLabel: view.contentEl.querySelector(".youtube-summarizer-info-label")!.textContent,
+      });
+      expect(texts()).toEqual({
+        tabs: [ko.tabUrlSummary, ko.tabSubscriptionFeed],
+        buttons: [ko.summarizeButton, ko.bulkButton, ko.bulkCancelButton],
+        summaries: [ko.scriptLabel, ko.bulkLabel],
+        placeholder: ko.urlPlaceholder,
+        infoLabel: ko.infoProviderLabel,
+      });
+      view.contentEl.querySelector("input")!.value = "https://youtu.be/dQw4w9WgXcQ";
+
+      settings = { ...settings, language: "en" };
+      view.onSettingsChanged();
+      await vi.waitFor(() => expect(view.contentEl.querySelector("input")!.placeholder).toBe(tr.urlPlaceholder));
+
+      expect(texts()).toEqual({
+        tabs: [tr.tabUrlSummary, tr.tabSubscriptionFeed],
+        buttons: [tr.summarizeButton, tr.bulkButton, tr.bulkCancelButton],
+        summaries: [tr.scriptLabel, tr.bulkLabel],
+        placeholder: tr.urlPlaceholder,
+        infoLabel: tr.infoProviderLabel,
+      });
+      expect(view.contentEl.querySelector("input")!.value).toBe("https://youtu.be/dQw4w9WgXcQ");
+    });
+  });
+
   describe("URL 탭 현황 패널", () => {
     it("제공자·모델과 구독 피드 상태·채널·그룹 수를 보여주고, 설정이 바뀌면 다시 그린다", async () => {
       const channel = (channelId: string, group?: string) => ({ channelId, channelTitle: channelId, thumbnailUrl: "", group });

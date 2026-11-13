@@ -9,7 +9,7 @@ import { validateYouTubeUrl } from "../utils/YouTubeUrlValidator";
 import { SummarizerService } from "../services/SummarizerService";
 import { getAiConfigurationError } from "../services/AiModelClient";
 import { AI_MODEL_FIELDS, AI_PROVIDER_LABELS, PluginSettings, SummaryStage } from "../models/types";
-import { t, Translations } from "../i18n";
+import { Language, t, Translations } from "../i18n";
 import { SubscriptionManager } from "../services/SubscriptionManager";
 import { FeedView } from "./FeedView";
 import { stageText } from "./stageText";
@@ -65,6 +65,8 @@ export class SidebarView extends ItemView {
   /** 상태 메시지 표시 영역 */
   private statusMessage!: HTMLElement;
   private infoEl: HTMLElement | null = null;
+  /** 지금 화면을 그릴 때 쓴 UI 언어 (설정에서 바뀌면 다시 그리기 위함) */
+  private renderedLanguage: Language | null = null;
 
   /** 탭 콘텐츠 영역 */
   private tabContentEl!: HTMLElement;
@@ -139,6 +141,7 @@ export class SidebarView extends ItemView {
     container.addClass("youtube-summarizer-container");
 
     const tr = this.tr;
+    this.renderedLanguage = this.getSettings?.()?.language ?? "en";
 
     // 제목 영역
     const titleEl = container.createEl("h4", {
@@ -322,6 +325,27 @@ export class SidebarView extends ItemView {
 
     this.infoEl = container.createDiv({ cls: "youtube-summarizer-info" });
     this.refreshInfo();
+  }
+
+  /**
+   * 설정이 저장될 때마다 호출된다. UI 언어가 바뀌었으면 사이드바 전체를 새 언어로 다시 그리고,
+   * 아니면 현황 패널만 갱신한다. 요약 진행 중에는 진행 표시를 지우지 않도록 다시 그리지 않는다.
+   */
+  onSettingsChanged(): void {
+    const language = this.getSettings?.()?.language;
+    if (!language || language === this.renderedLanguage || this.isProcessing) {
+      this.refreshInfo();
+      return;
+    }
+    // 입력해 둔 값은 다시 그린 뒤에도 유지한다.
+    const values = [this.urlInput?.value, this.scriptTextarea?.value, this.bulkTextarea?.value];
+    this.feedView?.destroy();
+    this.feedView = null;
+    this.tabPanels = {};
+    void this.onOpen().then(() => {
+      if (this.activeTab !== "url") return;
+      [this.urlInput.value, this.scriptTextarea.value, this.bulkTextarea.value] = values.map((value) => value ?? "");
+    });
   }
 
   /** URL 탭 아래의 현황: 요약에 쓰는 제공자·모델과 구독 피드 상태. 설정이 저장될 때마다 다시 그린다 */
