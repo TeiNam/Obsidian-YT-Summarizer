@@ -29,7 +29,8 @@
     "vitest": "^1.2.0"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1128.0",
-    "@aws-sdk/credential-provider-ini": "^3.973.15"
+    "@aws-sdk/client-bedrock": "^3.1168.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1168.0",
+    "@aws-sdk/credential-provider-ini": "^3.973.30"
   }
 }

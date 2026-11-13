@@ -183,25 +183,9 @@ export class SettingsTab extends PluginSettingTab {
     } as const;
 
     if (settings.aiProvider === "bedrock") {
-      new Setting(containerEl)
-        .setName(tr.bedrockAuthLabel)
-        .addDropdown((dropdown) => {
-          dropdown.addOption("bearer", tr.bedrockBearerOption)
-            .addOption("profile", tr.bedrockProfileOption)
-            .setValue(settings.bedrockAuthMode)
-            .onChange(async (value) => {
-              this.plugin.settings.bedrockAuthMode = value as "bearer" | "profile";
-              this.invalidateModelList();
-              await this.plugin.saveSettings();
-              this.display();
-            });
-        });
       this.modelText(containerEl, tr.bedrockRegionLabel, tr.bedrockRegionDesc, "bedrockRegion");
-      if (settings.bedrockAuthMode === "profile") {
-        this.modelText(containerEl, tr.bedrockProfileLabel, tr.bedrockProfileDesc, "bedrockProfile");
-      } else {
-        this.modelText(containerEl, tr.bedrockTokenLabel, tr.bedrockTokenDesc, "bedrockBearerToken", true);
-      }
+      this.modelText(containerEl, tr.bedrockProfileLabel, tr.bedrockProfileDesc, "bedrockProfile");
+      this.modelText(containerEl, tr.bedrockTokenLabel, tr.bedrockTokenDesc, "bedrockBearerToken", true);
     } else {
       if (settings.aiProvider === "openai") {
         this.modelText(containerEl, tr.openaiBaseUrlLabel, tr.openaiBaseUrlDesc, "openaiBaseUrl");
@@ -257,7 +241,9 @@ export class SettingsTab extends PluginSettingTab {
         new ModelSuggest(
           this.app,
           text.inputEl,
-          () => version === this.modelListVersion ? this.availableModels ?? [] : [],
+          // Bedrock 목록은 설정에 저장해 두고 다시 불러오기 전까지 그대로 쓴다.
+          () => key === "bedrockModelId" ? this.plugin.settings.bedrockModels
+            : version === this.modelListVersion ? this.availableModels ?? [] : [],
           async (value) => {
             this.plugin.settings[key] = value;
             await this.plugin.saveSettings();
@@ -276,6 +262,10 @@ export class SettingsTab extends PluginSettingTab {
               const models = await listAvailableModels({ ...this.plugin.settings });
               if (version !== this.modelListVersion) return;
               this.availableModels = models;
+              if (key === "bedrockModelId") {
+                this.plugin.settings.bedrockModels = models;
+                await this.plugin.saveSettings();
+              }
               new Notice(tr.modelListLoaded(this.availableModels.length));
             } catch (error) {
               if (version !== this.modelListVersion) return;

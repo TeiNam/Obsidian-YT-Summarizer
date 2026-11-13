@@ -63,7 +63,7 @@ describe("YouTubeSummarizerPlugin", () => {
       vi.spyOn(plugin, "loadData").mockResolvedValue(null);
       await plugin.loadSettings();
       expect(plugin.settings.aiProvider).toBe("bedrock");
-      expect(plugin.settings.bedrockAuthMode).toBe("bearer");
+      expect(plugin.settings.bedrockProfile).toBe("");
       expect(plugin.settings.bedrockModelId).toBe(DEFAULT_SETTINGS.bedrockModelId);
       expect((plugin.settings as any).awsAccessKeyId).toBeUndefined();
       expect((plugin.settings as any).awsSecretAccessKey).toBeUndefined();

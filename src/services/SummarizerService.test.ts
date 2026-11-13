@@ -21,6 +21,15 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => ({
     constructor(public input: unknown) {}
   },
 }));
+vi.mock("@aws-sdk/client-bedrock", () => ({
+  BedrockClient: class {
+    constructor(config: unknown) { sdk.config(config); }
+    send = sdk.send;
+    destroy = sdk.destroy;
+  },
+  ListInferenceProfilesCommand: class { kind = "profiles"; },
+  ListFoundationModelsCommand: class { kind = "models"; },
+}));
 vi.mock("@aws-sdk/credential-provider-ini", () => ({ fromIni: sdk.fromIni }));
 
 const VIDEO_ID = "dQw4w9WgXcQ";
@@ -329,7 +338,7 @@ describe("로컬 자막 요약", () => {
 
   it("SSO 프로필을 명시하고 환경의 Bearer 토큰보다 SigV4를 우선한다", async () => {
     vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "environment-token");
-    const settings: PluginSettings = { ...SETTINGS, bedrockAuthMode: "profile", bedrockProfile: "my-sso" };
+    const settings: PluginSettings = { ...SETTINGS, bedrockBearerToken: "", bedrockProfile: "my-sso" };
     const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>();
     const model = new AiModelClient(settings, request);
     expect(await model.generate("질문")).toBe("SSO 결과");
@@ -345,11 +354,32 @@ describe("로컬 자막 요약", () => {
 
   it("SSO 만료는 로그인 안내로, HTTP 오류는 키가 없는 메시지로 반환한다", async () => {
     sdk.send.mockRejectedValue(Object.assign(new Error("private credentials"), { name: "CredentialsProviderError" }));
-    const model = new AiModelClient({ ...SETTINGS, bedrockAuthMode: "profile" });
+    const model = new AiModelClient({ ...SETTINGS, bedrockBearerToken: "", bedrockProfile: "my-sso" });
     await expect(model.generate("질문")).rejects.toThrow(t("ko").errorProfileCredentials);
     model.destroy();
     const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({ status: 401, json: { message: "provider-key" } });
     await expect(new AiModelClient(SETTINGS, request).generate("질문")).rejects.toThrow("HTTP 401");
+  });
+
+  it("프로필 자격 증명을 못 얻으면 Bearer로 폴백하고, 권한 오류는 폴백하지 않는다", async () => {
+    const settings: PluginSettings = { ...SETTINGS, bedrockProfile: "wl-roles-anywhere" };
+    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+      status: 200, json: { stopReason: "end_turn", output: { message: { content: [{ text: "Bearer 결과" }] } } },
+    });
+    sdk.send.mockRejectedValue(Object.assign(new Error("helper missing"), { name: "CredentialsProviderError" }));
+    const model = new AiModelClient(settings, request);
+    expect(await model.generate("질문")).toBe("Bearer 결과");
+    expect(sdk.fromIni).toHaveBeenCalledWith({ profile: "wl-roles-anywhere", ignoreCache: true });
+    expect(request.mock.calls[0][0].headers.Authorization).toBe("Bearer bedrock-secret");
+
+    sdk.send.mockRejectedValue(Object.assign(new Error("denied"), { name: "AccessDeniedException" }));
+    await expect(model.generate("질문")).rejects.toThrow(t("ko").errorModelRequest);
+    expect(request).toHaveBeenCalledOnce();
+
+    Platform.isDesktopApp = false;
+    expect(await model.generate("질문")).toBe("Bearer 결과");
+    expect(request).toHaveBeenCalledTimes(2);
+    model.destroy();
   });
 
   it.each(["length", "MAX_TOKENS", "content_filter"])("모델의 종료 사유 %s를 정상 응답으로 저장하지 않는다", async (reason) => {
@@ -415,11 +445,51 @@ describe("listAvailableModels", () => {
     ]);
   });
 
-  it("Bedrock 프로필 인증은 목록 조회를 거부하고 수동 입력을 안내한다", async () => {
+  it("Bedrock은 프로필로 조회하고 haiku·opus·sonnet 계열별 최신 버전만 남긴다", async () => {
     const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>();
-    await expect(listAvailableModels({ ...SETTINGS, bedrockAuthMode: "profile" }, request))
-      .rejects.toThrow(t("ko").errorModelListProfile);
+    const onDemand = { outputModalities: ["TEXT"], inferenceTypesSupported: ["ON_DEMAND"] };
+    sdk.send.mockImplementation(async (command: { kind: string }) => command.kind === "profiles"
+      ? { inferenceProfileSummaries: [
+        "us.anthropic.claude-sonnet-4-5-20250929-v1:0", "us.anthropic.claude-sonnet-4-6", "global.anthropic.claude-sonnet-4-6",
+        "us.anthropic.claude-opus-4-1-20250805-v1:0", "us.anthropic.claude-opus-5-5", "us.amazon.nova-pro-v1:0",
+      ].map((inferenceProfileId) => ({ inferenceProfileId, status: "ACTIVE" })) }
+      : { modelSummaries: [
+        { modelId: "anthropic.claude-3-5-haiku-20241022-v1:0", ...onDemand },
+        { modelId: "anthropic.claude-haiku-4-5-20251001-v1:0", ...onDemand },
+        { modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0", ...onDemand },
+      ] });
+    const settings: PluginSettings = { ...SETTINGS, bedrockBearerToken: "", bedrockProfile: "wl-roles-anywhere" };
+    await expect(listAvailableModels(settings, request)).resolves.toEqual([
+      "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "global.anthropic.claude-sonnet-4-6",
+      "us.anthropic.claude-opus-5-5",
+      "us.anthropic.claude-sonnet-4-6",
+    ]);
+    expect(sdk.fromIni).toHaveBeenCalledWith({ profile: "wl-roles-anywhere", ignoreCache: true });
+    expect(sdk.destroy).toHaveBeenCalledOnce();
     expect(request).not.toHaveBeenCalled();
+
+    // ListFoundationModels 권한이 없는 역할도 추론 프로필만으로 목록을 만든다.
+    sdk.send.mockImplementation(async (command: { kind: string }) => {
+      if (command.kind === "models") throw Object.assign(new Error("denied"), { name: "AccessDeniedException" });
+      return { inferenceProfileSummaries: [{ inferenceProfileId: "us.anthropic.claude-opus-5-5", status: "ACTIVE" }] };
+    });
+    await expect(listAvailableModels(settings, request)).resolves.toEqual(["us.anthropic.claude-opus-5-5"]);
+  });
+
+  it("프로필 자격 증명을 못 얻으면 Bearer로 목록을 조회하고, 인증 수단이 없으면 거부한다", async () => {
+    sdk.send.mockRejectedValue(Object.assign(new Error("helper missing"), { name: "CredentialsProviderError" }));
+    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+      status: 200, json: { modelSummaries: [{ modelId: "amazon.nova-pro-v1:0", outputModalities: ["TEXT"], inferenceTypesSupported: ["ON_DEMAND"] }] },
+    });
+    const settings: PluginSettings = { ...SETTINGS, bedrockProfile: "wl-roles-anywhere" };
+    // Claude가 하나도 없으면 전체 목록을 유지한다.
+    await expect(listAvailableModels(settings, request)).resolves.toEqual(["amazon.nova-pro-v1:0"]);
+    expect(request.mock.calls[0][0].headers.Authorization).toBe("Bearer bedrock-secret");
+    await expect(listAvailableModels({ ...settings, bedrockBearerToken: "" }, request))
+      .rejects.toThrow(t("ko").errorProfileCredentials);
+    await expect(listAvailableModels({ ...SETTINGS, bedrockBearerToken: "" }, request))
+      .rejects.toThrow(t("ko").errorMissingApiKey);
   });
 
   it("Gemini는 generateContent 지원 모델만 models/ 접두사 없이 반환한다", async () => {
