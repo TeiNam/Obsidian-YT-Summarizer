@@ -24,7 +24,7 @@ import { SubscriptionManager } from "./services/SubscriptionManager";
  * 유튜브 요약 플러그인 메인 클래스
  */
 export default class YouTubeSummarizerPlugin extends Plugin {
-  settings!: PluginSettings;
+  declare settings: PluginSettings;
 
   async onload(): Promise<void> {
     await this.loadSettings();

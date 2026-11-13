@@ -1,32 +1,22 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
-    "target": "ES2018",
+    "target": "ES2022",
     "allowJs": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "importHelpers": true,
     "isolatedModules": true,
     "lib": [
       "DOM",
-      "ES5",
-      "ES6",
-      "ES7",
-      "ES2018",
-      "ES2022.Error",
-      "ES2020.Intl"
+      "ES2022"
     ],
     "outDir": "./dist",
-    "rootDir": "./src",
-    "paths": {
-      "@/*": ["src/*"]
-    },
     "types": [
       "node"
     ],

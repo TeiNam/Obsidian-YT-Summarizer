@@ -59,7 +59,7 @@ function createPipeline(captionLanguage = "ko") {
       ] } },
     },
   };
-  const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockImplementation(async (options) => {
+  const request = vi.fn<RequestFn>().mockImplementation(async (options) => {
     if (options.url.includes("/watch?")) return {
       status: 200, json: null,
       text: '<meta property="og:title" content="영상 제목"><meta itemprop="datePublished" content="2026-08-30"><script>"INNERTUBE_API_KEY":"public-player-key"</script>',
@@ -314,7 +314,7 @@ describe("로컬 자막 요약", () => {
     { provider: "anthropic", model: "anthropicModel", key: "anthropicApiKey", url: "/v1/messages", header: "x-api-key", value: "provider-key", json: { content: [{ type: "thinking", thinking: "비공개" }, { type: "text", text: "결과" }], stop_reason: "end_turn" } },
     { provider: "gemini", model: "geminiModel", key: "geminiApiKey", url: ":generateContent", header: "x-goog-api-key", value: "provider-key", json: { candidates: [{ content: { parts: [{ thought: true, text: "비공개" }, { text: "결과" }] }, finishReason: "STOP" }] } },
   ] as const)("$provider의 API 키·모델·응답 규격을 사용한다", async (test) => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({ status: 200, json: test.json });
+    const request = vi.fn<RequestFn>().mockResolvedValue({ status: 200, json: test.json });
     const settings = { ...SETTINGS, aiProvider: test.provider, [test.key]: "provider-key", [test.model]: "test-model" };
     const model = new AiModelClient(settings, request);
     expect(await model.generate("프롬프트")).toBe("결과");
@@ -327,7 +327,7 @@ describe("로컬 자막 요약", () => {
 
   it("로컬 OpenAI 호환 서버는 키 없이 max_tokens로 호출하고 원격 HTTP는 거부한다", async () => {
     const settings: PluginSettings = { ...SETTINGS, aiProvider: "openai", openaiBaseUrl: "http://localhost:11434/v1/" };
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({ status: 200, json: { choices: [{ message: { content: "로컬 결과" }, finish_reason: "stop" }] } });
+    const request = vi.fn<RequestFn>().mockResolvedValue({ status: 200, json: { choices: [{ message: { content: "로컬 결과" }, finish_reason: "stop" }] } });
     expect(await new AiModelClient(settings, request).generate("질문")).toBe("로컬 결과");
     expect(request.mock.calls[0][0].url).toBe("http://localhost:11434/v1/chat/completions");
     expect(request.mock.calls[0][0].headers.Authorization).toBeUndefined();
@@ -339,7 +339,7 @@ describe("로컬 자막 요약", () => {
   it("SSO 프로필을 명시하고 환경의 Bearer 토큰보다 SigV4를 우선한다", async () => {
     vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "environment-token");
     const settings: PluginSettings = { ...SETTINGS, bedrockBearerToken: "", bedrockProfile: "my-sso" };
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>();
+    const request = vi.fn<RequestFn>();
     const model = new AiModelClient(settings, request);
     expect(await model.generate("질문")).toBe("SSO 결과");
     expect(sdk.fromIni).toHaveBeenCalledWith({ profile: "my-sso", ignoreCache: true });
@@ -357,13 +357,13 @@ describe("로컬 자막 요약", () => {
     const model = new AiModelClient({ ...SETTINGS, bedrockBearerToken: "", bedrockProfile: "my-sso" });
     await expect(model.generate("질문")).rejects.toThrow(t("ko").errorProfileCredentials);
     model.destroy();
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({ status: 401, json: { message: "provider-key" } });
+    const request = vi.fn<RequestFn>().mockResolvedValue({ status: 401, json: { message: "provider-key" } });
     await expect(new AiModelClient(SETTINGS, request).generate("질문")).rejects.toThrow("HTTP 401");
   });
 
   it("프로필 자격 증명을 못 얻으면 Bearer로 폴백하고, 권한 오류는 폴백하지 않는다", async () => {
     const settings: PluginSettings = { ...SETTINGS, bedrockProfile: "wl-roles-anywhere" };
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+    const request = vi.fn<RequestFn>().mockResolvedValue({
       status: 200, json: { stopReason: "end_turn", output: { message: { content: [{ text: "Bearer 결과" }] } } },
     });
     sdk.send.mockRejectedValue(Object.assign(new Error("helper missing"), { name: "CredentialsProviderError" }));
@@ -395,7 +395,7 @@ describe("로컬 자막 요약", () => {
   });
 
   it.each(["length", "MAX_TOKENS", "content_filter"])("모델의 종료 사유 %s를 정상 응답으로 저장하지 않는다", async (reason) => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({ status: 200, json: { choices: [{ message: { content: "부분 결과" }, finish_reason: reason }] } });
+    const request = vi.fn<RequestFn>().mockResolvedValue({ status: 200, json: { choices: [{ message: { content: "부분 결과" }, finish_reason: reason }] } });
     const model = new AiModelClient({ ...SETTINGS, aiProvider: "openai", openaiApiKey: "key" }, request);
     await expect(model.generate("질문")).rejects.toThrow(reason === "content_filter" ? t("ko").errorModelBlocked : t("ko").errorModelTruncated);
   });
@@ -409,7 +409,7 @@ describe("listAvailableModels", () => {
     "https://remote.example/v1?key=value",
     "https://remote.example/v1#fragment",
   ])("요약과 모델 목록 조회가 모두 안전하지 않은 주소를 요청 전에 거부한다: %s", async (url) => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+    const request = vi.fn<RequestFn>().mockResolvedValue({
       status: 200, json: { data: [{ id: "test-model" }] },
     });
     const settings: PluginSettings = {
@@ -421,7 +421,7 @@ describe("listAvailableModels", () => {
   });
 
   it("모델을 선택하기 전에도 목록을 조회하되 원격 서버의 키 누락은 거부한다", async () => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+    const request = vi.fn<RequestFn>().mockResolvedValue({
       status: 200, json: { data: [{ id: "gpt-4.1-mini" }] },
     });
     const settings: PluginSettings = { ...SETTINGS, aiProvider: "openai", openaiModel: "", openaiApiKey: "" };
@@ -432,7 +432,7 @@ describe("listAvailableModels", () => {
   });
 
   it("Bedrock은 추론 프로필과 온디맨드 텍스트 모델을 합쳐 정렬해 반환한다", async () => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockImplementation(async (options) => {
+    const request = vi.fn<RequestFn>().mockImplementation(async (options) => {
       expect(options.headers.Authorization).toBe("Bearer bedrock-secret");
       if (options.url.includes("/inference-profiles")) return {
         status: 200,
@@ -458,7 +458,7 @@ describe("listAvailableModels", () => {
   });
 
   it("Bedrock은 프로필로 조회하고 haiku·opus·sonnet 계열별 최신 버전만 남긴다", async () => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>();
+    const request = vi.fn<RequestFn>();
     const onDemand = { outputModalities: ["TEXT"], inferenceTypesSupported: ["ON_DEMAND"] };
     sdk.send.mockImplementation(async (command: { kind: string }) => command.kind === "profiles"
       ? { inferenceProfileSummaries: [
@@ -491,7 +491,7 @@ describe("listAvailableModels", () => {
 
   it("프로필 자격 증명을 못 얻으면 Bearer로 목록을 조회하고, 인증 수단이 없으면 거부한다", async () => {
     sdk.send.mockRejectedValue(Object.assign(new Error("helper missing"), { name: "CredentialsProviderError" }));
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+    const request = vi.fn<RequestFn>().mockResolvedValue({
       status: 200, json: { modelSummaries: [{ modelId: "amazon.nova-pro-v1:0", outputModalities: ["TEXT"], inferenceTypesSupported: ["ON_DEMAND"] }] },
     });
     const settings: PluginSettings = { ...SETTINGS, bedrockProfile: "wl-roles-anywhere" };
@@ -505,7 +505,7 @@ describe("listAvailableModels", () => {
   });
 
   it("Gemini는 generateContent 지원 모델만 models/ 접두사 없이 반환한다", async () => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+    const request = vi.fn<RequestFn>().mockResolvedValue({
       status: 200,
       json: { models: [
         { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
@@ -517,7 +517,7 @@ describe("listAvailableModels", () => {
   });
 
   it("OpenAI 호환 서버는 /models의 id 목록을 반환하고, 키 누락·HTTP 오류를 구분한다", async () => {
-    const request = vi.fn<Parameters<RequestFn>, ReturnType<RequestFn>>().mockResolvedValue({
+    const request = vi.fn<RequestFn>().mockResolvedValue({
       status: 200,
       json: { data: [{ id: "gpt-4.1-mini" }, { id: "gpt-4.1" }] },
     });
@@ -535,7 +535,7 @@ describe("listAvailableModels", () => {
 
 describe("SummaryEngine - 다국어 타겟", () => {
   it("비한국어 타겟은 범용 번역 템플릿과 출력 언어 지시를 사용하고 영어 라벨로 조립한다", async () => {
-    const generate = vi.fn<[string], Promise<string>>()
+    const generate = vi.fn<(prompt: string) => Promise<string>>()
       .mockResolvedValueOnce("日本語訳")
       .mockResolvedValueOnce(SUMMARY);
     const engine = new SummaryEngine({ generate }, { ...SETTINGS });
@@ -549,7 +549,7 @@ describe("SummaryEngine - 다국어 타겟", () => {
   });
 
   it("한국어 타겟은 기존 한국어 번역 원칙 템플릿을 유지한다", async () => {
-    const generate = vi.fn<[string], Promise<string>>()
+    const generate = vi.fn<(prompt: string) => Promise<string>>()
       .mockResolvedValueOnce("번역문")
       .mockResolvedValueOnce(SUMMARY);
     const engine = new SummaryEngine({ generate }, { ...SETTINGS });

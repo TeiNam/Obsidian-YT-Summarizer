@@ -42,7 +42,7 @@ function videoItemArbitrary(channelIdArb?: fc.Arbitrary<string>): fc.Arbitrary<V
     channelId: channelIdArb ?? fc.string({ minLength: 1, maxLength: 30 }),
     channelTitle: fc.string({ minLength: 1, maxLength: 100 }),
     // 유효한 ISO 8601 날짜 문자열 생성
-    publishedAt: fc.date({
+    publishedAt: fc.date({ noInvalidDate: true,
       min: new Date("2020-01-01T00:00:00Z"),
       max: new Date("2030-12-31T23:59:59Z"),
     }).map((d) => d.toISOString()),
