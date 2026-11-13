@@ -29,6 +29,20 @@ export interface Translations {
   providerDesc: string;
   modelLabel: string;
   modelDesc: string;
+  modelManualOption: string;
+  connectionTestLabel: string;
+  connectionTestDesc: string;
+  connectionTestButton: string;
+  connectionTesting: string;
+  connectionOk: string;
+  connectionOkProfile: string;
+  connectionOkBearer: string;
+  connectionOkFallback: string;
+  noticeBearerFallback: string;
+  openNoteLink: string;
+  bulkCancelButton: string;
+  bulkSkipped: (count: number) => string;
+  bulkCancelled: (count: number) => string;
   modelListButton: string;
   modelListLoading: string;
   modelListLoaded: (count: number) => string;
@@ -160,7 +174,7 @@ export interface Translations {
 
 /** 영어 번역 */
 const en: Translations = {
-  settingsDescription: "Fetch YouTube captions in Obsidian and send them directly to your selected AI model. No summary server or audio transcription is used. Captions may take time to appear; you can also paste a transcript. Recommended model: Claude Sonnet.",
+  settingsDescription: "Captions are fetched from YouTube and sent directly to the AI provider you select below.",
 
   languageLabel: "Language",
   languageDesc: "Select the display language for the plugin UI",
@@ -172,6 +186,20 @@ const en: Translations = {
   providerDesc: "The selected provider receives the transcript for translation and summarization",
   modelLabel: "Model ID",
   modelDesc: "Enter a text model ID you can access. Claude Sonnet is recommended, e.g. claude-sonnet-4-6 (Bedrock also accepts inference profile IDs/ARNs)",
+  modelManualOption: "Enter manually...",
+  connectionTestLabel: "Connection test",
+  connectionTestDesc: "Send a short request with the current settings to check authentication and the model. Uses a few tokens.",
+  connectionTestButton: "Test",
+  connectionTesting: "Testing...",
+  connectionOk: "Connection succeeded.",
+  connectionOkProfile: "Connection succeeded with the AWS profile.",
+  connectionOkBearer: "Connection succeeded with the Bearer token.",
+  connectionOkFallback: "Connection succeeded with the Bearer token. The AWS profile credentials could not be loaded.",
+  noticeBearerFallback: "Could not load AWS profile credentials. Using the Bedrock Bearer token instead.",
+  openNoteLink: "Open note",
+  bulkCancelButton: "Stop after current video",
+  bulkSkipped: (count) => `${count} line(s) are not YouTube links and were skipped.`,
+  bulkCancelled: (count) => `Stopped. ${count} link(s) were not processed.`,
   modelListButton: "Load models",
   modelListLoading: "Loading...",
   modelListLoaded: (count) => `Loaded ${count} models. Pick one in the model ID field. The Bedrock list is saved until you load it again.`,
@@ -255,7 +283,7 @@ const en: Translations = {
   feedRefreshButton: "Refresh",
   feedLoading: "Loading feed...",
   feedEmpty: "No new videos found",
-  feedNoChannels: "Please select channels to monitor in settings",
+  feedNoChannels: "No channels yet. Add channels under Settings → YouTube LLM Summarizer → Monitored channels.",
   feedSummarizeButton: "Summarize",
   feedSummarizing: "Summarizing...",
   feedSummarized: "Summary complete",
@@ -298,7 +326,7 @@ const en: Translations = {
 
 /** 한국어 번역 */
 const ko: Translations = {
-  settingsDescription: "옵시디언에서 유튜브 자막을 가져와 선택한 AI 모델로 직접 번역·요약합니다. 별도 요약 서버와 음성 인식을 사용하지 않습니다. 자막 생성이 늦어지면 나중에 재시도하거나 스크립트를 직접 입력할 수 있습니다. 권장 모델은 Claude Sonnet 계열입니다.",
+  settingsDescription: "유튜브에서 자막을 가져와 아래에서 선택한 AI 제공자에게 직접 보냅니다.",
 
   languageLabel: "언어 (Language)",
   languageDesc: "플러그인 UI 표시 언어를 선택합니다",
@@ -310,6 +338,20 @@ const ko: Translations = {
   providerDesc: "선택한 제공자에게 자막을 전송하여 번역·요약합니다",
   modelLabel: "모델 ID",
   modelDesc: "접근 가능한 텍스트 모델 ID를 입력하세요. Claude Sonnet 계열을 권장합니다 (예: claude-sonnet-4-6). Bedrock은 추론 프로필 ID/ARN도 지원합니다",
+  modelManualOption: "직접 입력...",
+  connectionTestLabel: "연결 테스트",
+  connectionTestDesc: "현재 설정으로 짧은 요청을 보내 인증과 모델이 동작하는지 확인합니다. 토큰을 소량 사용합니다",
+  connectionTestButton: "테스트",
+  connectionTesting: "확인 중...",
+  connectionOk: "연결에 성공했습니다.",
+  connectionOkProfile: "AWS 프로필로 연결에 성공했습니다.",
+  connectionOkBearer: "Bearer 토큰으로 연결에 성공했습니다.",
+  connectionOkFallback: "Bearer 토큰으로 연결에 성공했습니다. AWS 프로필 자격 증명은 불러오지 못했습니다.",
+  noticeBearerFallback: "AWS 프로필 자격 증명을 불러오지 못해 Bedrock Bearer 토큰으로 진행합니다.",
+  openNoteLink: "노트 열기",
+  bulkCancelButton: "현재 영상까지만 하고 중단",
+  bulkSkipped: (count) => `유튜브 링크가 아닌 ${count}줄은 건너뛰었습니다.`,
+  bulkCancelled: (count) => `중단했습니다. 남은 링크 ${count}개는 처리하지 않았습니다.`,
   modelListButton: "모델 불러오기",
   modelListLoading: "불러오는 중...",
   modelListLoaded: (count) => `모델 ${count}개를 불러왔습니다. 모델 ID 입력란에서 선택하세요. Bedrock 목록은 다시 불러올 때까지 저장됩니다.`,
@@ -393,7 +435,7 @@ const ko: Translations = {
   feedRefreshButton: "새로고침",
   feedLoading: "피드를 불러오는 중...",
   feedEmpty: "새로운 영상이 없습니다",
-  feedNoChannels: "모니터링할 채널을 설정에서 선택해주세요",
+  feedNoChannels: "아직 채널이 없습니다. 설정 → YouTube LLM Summarizer → 모니터링 채널에서 추가해주세요.",
   feedSummarizeButton: "요약하기",
   feedSummarizing: "요약 중...",
   feedSummarized: "요약 완료",

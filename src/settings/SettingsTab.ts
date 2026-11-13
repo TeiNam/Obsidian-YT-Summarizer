@@ -10,10 +10,16 @@ import {
   SUMMARY_LANGUAGES, SummaryLanguage,
 } from "../models/types";
 import { t, Language } from "../i18n";
-import { listAvailableModels } from "../services/AiModelClient";
+import { AiModelClient, canUseProfile, listAvailableModels } from "../services/AiModelClient";
 import { FolderSuggest } from "./FolderSuggest";
 
 /** 불러온 모델 ID 목록을 모델 입력란의 자동완성으로 제안 */
+const MANUAL_MODEL_OPTION = "__manual__";
+/** 연결 테스트는 설정이 허용하는 최소 출력 토큰만 쓴다 */
+const CONNECTION_TEST_MAX_TOKENS = 128;
+const CONNECTION_TEST_PROMPT = "Reply with the single word OK.";
+const NOTICE_DURATION_MS = 10000;
+
 class ModelSuggest extends AbstractInputSuggest<string> {
   constructor(
     app: App,
@@ -66,6 +72,8 @@ export class SettingsTab extends PluginSettingTab {
   private modelListVersion = 0;
   /** 모델 목록 로딩 진행 중 여부 */
   private isLoadingModels = false;
+  /** 저장된 Bedrock 목록이 있어도 모델 ID를 직접 입력하는 중인지 여부 */
+  private isManualModel = false;
 
   constructor(app: App, plugin: YouTubeSummarizerPluginInterface) {
     super(app, plugin as any);
@@ -196,6 +204,7 @@ export class SettingsTab extends PluginSettingTab {
 
     // 인증 정보 입력 뒤에 모델 선택 (불러오기 버튼 + 자동완성)
     this.renderModelSetting(containerEl, tr, modelField[settings.aiProvider]);
+    this.renderConnectionTest(containerEl, tr);
 
     for (const [key, label, desc, min, max] of [
       ["maxInputChars", tr.maxInputCharsLabel, tr.maxInputCharsDesc, 1000, 1000000],
@@ -229,10 +238,27 @@ export class SettingsTab extends PluginSettingTab {
     tr: ReturnType<typeof t>,
     key: "bedrockModelId" | "openaiModel" | "anthropicModel" | "geminiModel"
   ): void {
-    new Setting(containerEl)
-      .setName(tr.modelLabel)
-      .setDesc(tr.modelDesc)
-      .addText((text) => {
+    const savedModels = key === "bedrockModelId" ? this.plugin.settings.bedrockModels : [];
+    const modelSetting = new Setting(containerEl).setName(tr.modelLabel).setDesc(tr.modelDesc);
+    if (savedModels.length && !this.isManualModel) {
+      // 저장된 Bedrock 목록이 있으면 드롭다운으로 고르고, 목록에 없는 ID는 "직접 입력"으로 넣는다.
+      modelSetting.addDropdown((dropdown) => {
+        const current = this.plugin.settings[key];
+        for (const id of new Set([...savedModels, ...(current ? [current] : [])])) dropdown.addOption(id, id);
+        dropdown.addOption(MANUAL_MODEL_OPTION, tr.modelManualOption)
+          .setValue(current)
+          .onChange(async (value) => {
+            if (value === MANUAL_MODEL_OPTION) {
+              this.isManualModel = true;
+              this.display();
+              return;
+            }
+            this.plugin.settings[key] = value;
+            await this.plugin.saveSettings();
+          });
+      });
+    } else {
+      modelSetting.addText((text) => {
         const version = this.modelListVersion;
         text.setValue(this.plugin.settings[key]).onChange(async (value) => {
           this.plugin.settings[key] = value.trim();
@@ -249,7 +275,9 @@ export class SettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }
         );
-      })
+      });
+    }
+    modelSetting
       .addButton((button) => {
         button
           .setButtonText(this.isLoadingModels ? tr.modelListLoading : tr.modelListButton)
@@ -263,6 +291,7 @@ export class SettingsTab extends PluginSettingTab {
               if (version !== this.modelListVersion) return;
               this.availableModels = models;
               if (key === "bedrockModelId") {
+                this.isManualModel = false;
                 this.plugin.settings.bedrockModels = models;
                 await this.plugin.saveSettings();
               }
@@ -276,6 +305,36 @@ export class SettingsTab extends PluginSettingTab {
               this.display();
             }
           });
+      });
+  }
+
+  /** 현재 설정으로 짧은 요청을 보내 인증·모델이 동작하는지, Bedrock은 어떤 인증이 쓰였는지 알려준다 */
+  private renderConnectionTest(containerEl: HTMLElement, tr: ReturnType<typeof t>): void {
+    new Setting(containerEl)
+      .setName(tr.connectionTestLabel)
+      .setDesc(tr.connectionTestDesc)
+      .addButton((button) => {
+        button.setButtonText(tr.connectionTestButton).onClick(async () => {
+          const settings = { ...this.plugin.settings, maxOutputTokens: CONNECTION_TEST_MAX_TOKENS };
+          let hasFallenBack = false;
+          const client = new AiModelClient(settings, undefined, () => { hasFallenBack = true; });
+          button.setDisabled(true).setButtonText(tr.connectionTesting);
+          try {
+            await client.generate(CONNECTION_TEST_PROMPT);
+            const isBedrock = settings.aiProvider === "bedrock";
+            new Notice(
+              !isBedrock ? tr.connectionOk
+                : hasFallenBack ? tr.connectionOkFallback
+                : canUseProfile(settings) ? tr.connectionOkProfile : tr.connectionOkBearer,
+              NOTICE_DURATION_MS
+            );
+          } catch (error) {
+            new Notice(error instanceof Error ? error.message : tr.errorModelRequest, NOTICE_DURATION_MS);
+          } finally {
+            client.destroy();
+            button.setDisabled(false).setButtonText(tr.connectionTestButton);
+          }
+        });
       });
   }
 

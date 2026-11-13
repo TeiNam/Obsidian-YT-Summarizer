@@ -372,14 +372,26 @@ describe("로컬 자막 요약", () => {
     expect(sdk.fromIni).toHaveBeenCalledWith({ profile: "wl-roles-anywhere", ignoreCache: true });
     expect(request.mock.calls[0][0].headers.Authorization).toBe("Bearer bedrock-secret");
 
+    // 한 번 폴백한 뒤에는 프로필을 다시 시도하지 않고, 폴백 알림도 한 번만 보낸다.
+    const onFallback = vi.fn();
+    const notifying = new AiModelClient(settings, request, onFallback);
+    await notifying.generate("질문");
+    await notifying.generate("질문");
+    expect(onFallback).toHaveBeenCalledOnce();
+    expect(sdk.send).toHaveBeenCalledTimes(2);
+    notifying.destroy();
+    model.destroy();
+
+    request.mockClear();
     sdk.send.mockRejectedValue(Object.assign(new Error("denied"), { name: "AccessDeniedException" }));
-    await expect(model.generate("질문")).rejects.toThrow(t("ko").errorModelRequest);
-    expect(request).toHaveBeenCalledOnce();
+    const denied = new AiModelClient(settings, request);
+    await expect(denied.generate("질문")).rejects.toThrow(t("ko").errorModelRequest);
+    expect(request).not.toHaveBeenCalled();
 
     Platform.isDesktopApp = false;
-    expect(await model.generate("질문")).toBe("Bearer 결과");
-    expect(request).toHaveBeenCalledTimes(2);
-    model.destroy();
+    expect(await denied.generate("질문")).toBe("Bearer 결과");
+    expect(request).toHaveBeenCalledOnce();
+    denied.destroy();
   });
 
   it.each(["length", "MAX_TOKENS", "content_filter"])("모델의 종료 사유 %s를 정상 응답으로 저장하지 않는다", async (reason) => {

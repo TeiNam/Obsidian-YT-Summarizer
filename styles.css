@@ -27,47 +27,14 @@
   gap: 10px;
 }
 
-/* URL 입력창 */
+/* URL 입력창·버튼: 모양은 Obsidian 기본 스타일(테마)을 따르고 배치만 지정 */
 .youtube-summarizer-url-input {
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  background: var(--background-primary);
-  color: var(--text-normal);
-  font-size: 0.9em;
 }
 
-.youtube-summarizer-url-input:focus {
-  border-color: var(--interactive-accent);
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
-}
-
-.youtube-summarizer-url-input::placeholder {
-  color: var(--text-faint);
-}
-
-/* 요약 버튼 */
-.youtube-summarizer-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  font-size: 0.9em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.youtube-summarizer-button:hover {
-  opacity: 0.9;
-}
-
-.youtube-summarizer-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.youtube-summarizer-cancel-button {
+  margin-top: 6px;
+  width: 100%;
 }
 
 /* 상태 메시지 영역 - 상태별 색/배경으로 피드백을 명확히 */
@@ -87,17 +54,33 @@
 .youtube-summarizer-status.error,
 .youtube-summarizer-status.success {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 6px 10px;
   border-radius: 6px;
 }
 
-.youtube-summarizer-status.loading::before,
-.youtube-summarizer-status.error::before,
-.youtube-summarizer-status.success::before {
-  font-size: 0.95em;
-  line-height: 1;
+.youtube-summarizer-status-icon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.youtube-summarizer-status-icon svg,
+.youtube-feed-status-icon svg {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+/* 벌크 결과처럼 여러 줄인 메시지의 줄바꿈을 살린다 */
+.youtube-summarizer-status-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.youtube-summarizer-open-note {
+  flex-shrink: 0;
 }
 
 .youtube-summarizer-status.loading {
@@ -105,8 +88,20 @@
   background: var(--background-modifier-hover);
 }
 
-.youtube-summarizer-status.loading::before {
-  content: "⏳";
+.youtube-summarizer-status.loading .youtube-summarizer-status-icon {
+  animation: youtube-summarizer-spin 1.2s linear infinite;
+}
+
+@keyframes youtube-summarizer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .youtube-summarizer-status.loading .youtube-summarizer-status-icon {
+    animation: none;
+  }
 }
 
 .youtube-summarizer-status.error {
@@ -114,52 +109,9 @@
   background: rgba(var(--color-red-rgb, 224, 70, 70), 0.1);
 }
 
-.youtube-summarizer-status.error::before {
-  content: "⚠";
-}
-
 .youtube-summarizer-status.success {
   color: var(--text-success);
   background: rgba(var(--color-green-rgb, 65, 165, 100), 0.12);
-}
-
-.youtube-summarizer-status.success::before {
-  content: "✓";
-}
-
-/* 프롬프트 편집 모달 */
-.youtube-summarizer-prompt-modal {
-  padding: 16px;
-}
-
-.youtube-summarizer-prompt-modal h2 {
-  margin: 0 0 12px 0;
-}
-
-.youtube-summarizer-prompt-textarea {
-  width: 100%;
-  min-height: 500px;
-  padding: 12px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  background: var(--background-primary);
-  color: var(--text-normal);
-  font-family: monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.youtube-summarizer-prompt-textarea:focus {
-  border-color: var(--interactive-accent);
-  outline: none;
-}
-
-.youtube-summarizer-prompt-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
 }
 
 /* 스크립트 직접 입력 영역 - native <details>로 기본 접힘 */
@@ -199,28 +151,15 @@
   transform: rotate(90deg);
 }
 
+/* 테두리·배경·포커스는 Obsidian 기본 textarea 스타일을 따른다 */
 .youtube-summarizer-script-textarea {
   margin-top: 6px;
+  margin-bottom: 6px;
   width: 100%;
   min-height: 120px;
-  padding: 8px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  background: var(--background-primary);
-  color: var(--text-normal);
   font-size: 0.85em;
   line-height: 1.5;
   resize: vertical;
-}
-
-.youtube-summarizer-script-textarea:focus {
-  border-color: var(--interactive-accent);
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
-}
-
-.youtube-summarizer-script-textarea::placeholder {
-  color: var(--text-faint);
 }
 
 .youtube-summarizer-script-hint {
@@ -255,6 +194,11 @@
   transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
+.youtube-summarizer-tab:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
 .youtube-summarizer-tab:hover {
   color: var(--text-normal);
 }
@@ -270,28 +214,21 @@
 }
 
 /* 피드 뷰 */
-.youtube-feed-refresh-btn {
-  width: 100%;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  font-size: 0.9em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  margin-bottom: 8px;
-}
-
-.youtube-feed-refresh-btn:hover {
-  opacity: 0.9;
+.youtube-feed-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
 }
 
 .youtube-feed-content {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.youtube-feed-error {
+  color: var(--text-error);
+  white-space: pre-line;
 }
 
 .youtube-feed-empty,
@@ -361,6 +298,7 @@
   font-weight: 500;
   line-height: 1.35;
   color: var(--text-normal);
+  text-decoration: none;
   /* 길어도 버튼을 밀어내지 않도록 2줄로 제한 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -383,6 +321,7 @@
   color: var(--text-muted);
   font-size: 0.78em;
   cursor: pointer;
+  box-shadow: none;
   border-top: 1px dashed var(--background-modifier-border);
   transition: color 0.15s ease;
 }
@@ -391,52 +330,36 @@
   color: var(--interactive-accent);
 }
 
-/* 요약 버튼 및 상태 */
+/* 요약 버튼 및 상태: 버튼 모양은 Obsidian 기본 스타일을 따른다 */
 .youtube-feed-summarize-btn {
   flex-shrink: 0;
-  padding: 4px 12px;
-  border: 1px solid var(--interactive-accent);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--interactive-accent);
   font-size: 0.78em;
-  font-weight: 500;
-  cursor: pointer;
   align-self: flex-start;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.youtube-feed-summarize-btn:hover {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-
-.youtube-feed-summarize-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: transparent;
-  color: var(--interactive-accent);
 }
 
 .youtube-feed-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
   font-size: 0.75em;
   color: var(--text-muted);
+}
+
+.youtube-feed-status-icon {
+  display: flex;
 }
 
 .youtube-feed-status.completed {
   color: var(--text-success);
 }
 
-.youtube-feed-status.completed::before {
-  content: "✓ ";
+.youtube-feed-status.completed a {
+  color: inherit;
 }
 
 .youtube-feed-status.error {
   color: var(--text-error);
-}
-
-.youtube-feed-status.error::before {
-  content: "⚠ ";
 }
 
 /* 모바일 반응형 */
@@ -458,7 +381,14 @@
     padding: 8px 16px;
   }
 
-  .youtube-feed-refresh-btn {
+  .youtube-feed-refresh-btn,
+  .youtube-summarizer-url-input,
+  .youtube-summarizer-button,
+  .youtube-summarizer-cancel-button {
     min-height: 44px;
+  }
+
+  .youtube-feed-refresh-btn {
+    min-width: 44px;
   }
 }
