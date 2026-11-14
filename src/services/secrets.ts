@@ -20,8 +20,16 @@ export const SECRET_FIELDS = [
 
 export type SecretIdField = typeof SECRET_FIELDS[number]["id"];
 
-export function isSecretIdField(key: string): key is SecretIdField {
-  return SECRET_FIELDS.some((field) => field.id === key);
+/**
+ * 설정 화면에서 입력한 키를 비밀 저장소에 쓰고, 설정에 저장할 비밀 이름을 돌려준다.
+ * 빈 값이면 연결만 끊는다 (SecretStorage에는 삭제 API가 없고 빈 값을 받지 않는다).
+ */
+export function storeSecret(storage: SecretStorage, idField: SecretIdField, currentId: string, value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const id = currentId || SECRET_FIELDS.find((field) => field.id === idField)!.defaultId;
+  storage.setSecret(id, trimmed);
+  return id;
 }
 
 /** 비밀 이름이 가리키는 실제 값을 채운 설정을 돌려준다. 서비스와 뷰는 이 결과만 사용한다 */

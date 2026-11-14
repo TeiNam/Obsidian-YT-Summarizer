@@ -1,7 +1,7 @@
 # YouTube LLM Summarizer
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)
-![Obsidian](https://img.shields.io/badge/Obsidian-1.13.2%2B-7C3AED.svg)
+![Obsidian](https://img.shields.io/badge/Obsidian-1.13.0%2B-7C3AED.svg)
 ![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-FF9900.svg)
 ![Vitest](https://img.shields.io/badge/Vitest-5.1-6E9F18.svg)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg)
@@ -51,7 +51,7 @@ npm run build
 
 Copy `main.js`, `manifest.json`, and `styles.css` into `.obsidian/plugins/youtube-llm-summarizer/` in your vault, then enable the plugin. If you installed it under the previous ID (`obsidian-youtube-summarizer`), move that folder's `data.json` into the new folder to keep your settings. The AWS SDK and the summary prompts are bundled into `main.js`.
 
-Requires Obsidian 1.13.2 or later. API key authentication works on desktop and mobile. **AWS profile and SSO authentication require the Obsidian desktop runtime with Node.js 20 or later.** If your runtime is older, update Obsidian with the latest installer.
+Requires Obsidian 1.13.0 or later. API key authentication works on desktop and mobile. **AWS profile and SSO authentication require the Obsidian desktop runtime with Node.js 20 or later.** If your runtime is older, update Obsidian with the latest installer.
 
 ## Usage
 
@@ -95,7 +95,7 @@ When the plugin falls back to the Bearer token it shows a notice, and it does no
 
 ### Bedrock Bearer token
 
-Create a secret that holds the API key issued in the Bedrock console, and select it in **Bedrock Bearer token**. The `Bearer` prefix is optional. This is not for an IAM access key ID or an SSO login token.
+Enter the API key issued in the Bedrock console in **Bedrock Bearer token**. The `Bearer` prefix is optional. This field is not for an IAM access key ID or an SSO login token.
 
 ### AWS profile (IAM Roles Anywhere, SSO)
 
@@ -128,7 +128,7 @@ HTTP is allowed only for `localhost`, `127.0.0.1`, and `[::1]`. Any other addres
 
 ### Key storage
 
-API keys are kept in Obsidian's secret storage, not in the plugin's `data.json`. Each key field in settings lets you pick or create a secret, and `data.json` stores only the name of that secret. Secret storage is local to each device, so select the secrets again on another device. If you use only an AWS profile, the plugin settings store just the profile name, and AWS credentials are read from the existing AWS cache.
+API keys are kept in Obsidian's secret storage, not in the plugin's `data.json`. You paste a key into its field in settings, the plugin writes it to secret storage under its own name (for example `youtube-llm-summarizer-openai-key`), and `data.json` stores only that name. The eye icon only hides the value on screen. Secret storage is local to each device, so enter the keys again on another device. If you use only an AWS profile, the plugin settings store just the profile name, and AWS credentials are read from the existing AWS cache.
 
 Keys that an earlier build saved in `data.json` as plain text are moved to secret storage the first time the plugin loads, and removed from the file.
 

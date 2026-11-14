@@ -13,7 +13,7 @@ import {
 } from "../models/types";
 import { t, Language } from "../i18n";
 import { AiModelClient, canUseProfile, listAvailableModels } from "../services/AiModelClient";
-import { SecretIdField, isSecretIdField } from "../services/secrets";
+import { SecretIdField, storeSecret } from "../services/secrets";
 import { FolderSuggest } from "./FolderSuggest";
 
 /** 불러온 모델 ID 목록을 모델 입력란의 자동완성으로 제안 */
@@ -96,7 +96,7 @@ export class SettingsTab extends PluginSettingTab {
     const tr = t(settings.language ?? "en");
     const hasYoutubeKey = settings.youtubeDataApiKeySecret.trim().length > 0;
     const secret = (name: string, desc: string, key: SecretIdField): SettingDefinition =>
-      ({ name, desc, control: { type: "secret", key } });
+      this.secretText(name, desc, key);
 
     return [
       // 플러그인 이름 헤딩은 심사 기준상 금지 — 설명만 표시
@@ -171,16 +171,48 @@ export class SettingsTab extends PluginSettingTab {
   }
 
   /**
-   * 선언형 control(비밀 선택)의 저장도 플러그인의 saveSettings를 거치게 한다.
-   * 기본 구현은 저장만 하므로, 사이드바 갱신과 모델 목록 무효화가 빠진다.
+   * API 키 입력 행. 값은 비밀 저장소에 쓰고 설정에는 비밀 이름만 남긴다.
+   * Obsidian의 비밀 선택 컨트롤 대신 자체 입력란을 써서, 문구와 언어가 플러그인 설정을 따르게 한다.
    */
-  async setControlValue(key: string, value: unknown): Promise<void> {
-    if (!isSecretIdField(key) || typeof value !== "string") return;
-    this.plugin.settings[key] = value;
-    this.invalidateModelList();
-    await this.plugin.saveSettings();
-    // YouTube Data API 키 유무에 따라 구독 설정 항목이 나타나거나 사라진다.
-    this.update();
+  private secretText(name: string, desc: string, key: SecretIdField): SettingDefinition {
+    return {
+      name,
+      desc,
+      render: (setting) => {
+        setting.addText((text) => {
+          const currentId = this.plugin.settings[key];
+          text
+            .setValue(currentId ? this.app.secretStorage.getSecret(currentId) ?? "" : "")
+            .onChange(async (value) => {
+              const hadKey = this.plugin.settings[key].length > 0;
+              this.plugin.settings[key] = storeSecret(this.app.secretStorage, key, this.plugin.settings[key], value);
+              this.invalidateModelList();
+              await this.plugin.saveSettings();
+              // YouTube Data API 키 유무에 따라 구독 설정 항목이 나타나거나 사라진다.
+              // 입력 중 포커스를 잃지 않도록 유무가 바뀔 때만 다시 그린다.
+              const hasKey = this.plugin.settings[key].length > 0;
+              if (key === "youtubeDataApiKeySecret" && hadKey !== hasKey) this.update();
+            });
+          this.addPasswordToggle(text.inputEl);
+        });
+      },
+    };
+  }
+
+  /** 키 입력란을 가리고, 눈 아이콘으로 표시를 전환한다 */
+  private addPasswordToggle(inputEl: HTMLInputElement): void {
+    inputEl.type = "password";
+    const toggleBtn = createEl("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "clickable-icon setting-editor-extra-setting-button";
+    toggleBtn.setAttribute("aria-label", t(this.plugin.settings.language ?? "en").toggleVisibilityAria);
+    setIcon(toggleBtn, "eye");
+    toggleBtn.addEventListener("click", () => {
+      const isPassword = inputEl.type === "password";
+      inputEl.type = isPassword ? "text" : "password";
+      setIcon(toggleBtn, isPassword ? "eye-off" : "eye");
+    });
+    inputEl.parentElement?.appendChild(toggleBtn);
   }
 
   private aiDefinitions(

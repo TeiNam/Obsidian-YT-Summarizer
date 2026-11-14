@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SecretStorage } from "obsidian";
 import { DEFAULT_SETTINGS, PluginSettings } from "../models/types";
-import { isSecretIdField, migratePlaintextSecrets, resolveSecrets } from "./secrets";
+import { migratePlaintextSecrets, resolveSecrets, storeSecret } from "./secrets";
 
 describe("비밀 저장소 연결", () => {
   it("비밀 이름이 가리키는 값을 채우고, 원본 설정은 바꾸지 않는다", () => {
@@ -39,9 +39,14 @@ describe("비밀 저장소 연결", () => {
     expect(migratePlaintextSecrets(DEFAULT_SETTINGS, storage)).toBeNull();
   });
 
-  it("비밀 이름을 저장하는 설정 키만 인정한다", () => {
-    expect(isSecretIdField("geminiApiKeySecret")).toBe(true);
-    expect(isSecretIdField("geminiApiKey")).toBe(false);
-    expect(isSecretIdField("saveFolderPath")).toBe(false);
+  it("입력한 키를 저장하고 비밀 이름을 돌려주며, 빈 값이면 연결을 끊는다", () => {
+    const storage = new SecretStorage();
+    // 처음 입력하면 플러그인이 정한 이름으로 만든다.
+    expect(storeSecret(storage, "geminiApiKeySecret", "", "  key-1  ")).toBe("youtube-llm-summarizer-gemini-key");
+    expect(storage.getSecret("youtube-llm-summarizer-gemini-key")).toBe("key-1");
+    // 이미 연결된 이름이 있으면 그 비밀을 덮어쓴다.
+    expect(storeSecret(storage, "geminiApiKeySecret", "custom-name", "key-2")).toBe("custom-name");
+    expect(storage.getSecret("custom-name")).toBe("key-2");
+    expect(storeSecret(storage, "geminiApiKeySecret", "custom-name", "   ")).toBe("");
   });
 });

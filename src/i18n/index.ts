@@ -22,6 +22,7 @@ export interface Translations {
 
   // 언어 설정
   languageLabel: string;
+  toggleVisibilityAria: string;
   languageDesc: string;
 
   // AI 모델 설정
@@ -190,6 +191,7 @@ const en: Translations = {
   sponsorLabel: "If you find this plugin useful, consider supporting its development.",
 
   languageLabel: "Language",
+  toggleVisibilityAria: "Toggle visibility",
   languageDesc: "Select the display language for the plugin UI",
 
   summaryLanguageLabel: "Summary language",
@@ -227,13 +229,13 @@ const en: Translations = {
   modelListLoaded: (count) => `Loaded ${count} models. Pick one in the model ID field. The Bedrock list is saved until you load it again.`,
   errorModelList: "Could not load the model list. Check the credentials, region and network.",
   bedrockTokenLabel: "Bedrock Bearer token",
-  bedrockTokenDesc: "Select the secret that holds your Bedrock API key (without the Bearer prefix). Used when no AWS profile is set or its credentials cannot be loaded, and on mobile.",
+  bedrockTokenDesc: "Paste the Bedrock API key without the Bearer prefix. Used when no AWS profile is set or its credentials cannot be loaded, and on mobile. Kept in the secret storage on this device, not in the plugin data file.",
   bedrockRegionLabel: "AWS region",
   bedrockRegionDesc: "Region where the selected model or inference profile is available",
   bedrockProfileLabel: "AWS profile",
   bedrockProfileDesc: "Optional, desktop only. Tried first when set (IAM Roles Anywhere credential_process or SSO); falls back to the Bearer token if credentials cannot be loaded. Profile from ~/.aws/config. For SSO, first run aws sso login --profile <profile> in a terminal. The plugin uses the SDK's cached credentials.",
   modelApiKeyLabel: "Model API key",
-  modelApiKeyDesc: "Select the secret that holds this provider's API key. Each provider keeps its own selection. Only loopback OpenAI-compatible servers work without a key.",
+  modelApiKeyDesc: "Kept separately for each provider in the secret storage on this device, not in the plugin data file. Only loopback OpenAI-compatible servers work without a key.",
   openaiBaseUrlLabel: "OpenAI-compatible base URL",
   openaiBaseUrlDesc: "Include /v1. Examples: https://api.openai.com/v1 or http://localhost:11434/v1 (Ollama). Changing the URL sends this provider's key to the new endpoint.",
   maxInputCharsLabel: "Maximum input characters",
@@ -352,6 +354,7 @@ const ko: Translations = {
   sponsorLabel: "이 플러그인이 유용하다면 개발을 후원해 주세요.",
 
   languageLabel: "언어 (Language)",
+  toggleVisibilityAria: "표시 전환",
   languageDesc: "플러그인 UI 표시 언어를 선택합니다",
 
   summaryLanguageLabel: "요약 언어",
@@ -389,13 +392,13 @@ const ko: Translations = {
   modelListLoaded: (count) => `모델 ${count}개를 불러왔습니다. 모델 ID 입력란에서 선택하세요. Bedrock 목록은 다시 불러올 때까지 저장됩니다.`,
   errorModelList: "모델 목록을 불러오지 못했습니다. 인증 정보·리전·네트워크를 확인해주세요.",
   bedrockTokenLabel: "Bedrock Bearer 토큰",
-  bedrockTokenDesc: "Bedrock API 키(Bearer 접두사 제외)가 들어 있는 시크릿 키를 선택하세요. AWS 프로필이 비어 있거나 자격 증명을 불러오지 못할 때, 그리고 모바일에서 사용합니다",
+  bedrockTokenDesc: "Bearer 접두사 없이 Bedrock API 키를 입력하세요. AWS 프로필이 비어 있거나 자격 증명을 불러오지 못할 때, 그리고 모바일에서 사용합니다. 플러그인 데이터 파일이 아니라 이 기기의 시크릿 키 저장소에 보관합니다",
   bedrockRegionLabel: "AWS 리전",
   bedrockRegionDesc: "선택한 모델이나 추론 프로필을 사용할 수 있는 리전입니다",
   bedrockProfileLabel: "AWS 프로필",
   bedrockProfileDesc: "선택 사항이며 데스크톱 전용입니다. 입력하면 먼저 시도하고(IAM Roles Anywhere credential_process·SSO), 자격 증명을 불러오지 못하면 Bearer 토큰으로 넘어갑니다. ~/.aws/config의 프로필 이름입니다. SSO는 터미널에서 aws sso login --profile <프로필>로 먼저 로그인하세요. SDK가 캐시된 자격 증명을 사용합니다",
   modelApiKeyLabel: "모델 API 키",
-  modelApiKeyDesc: "이 제공자의 API 키가 들어 있는 시크릿 키를 선택하세요. 제공자마다 따로 선택합니다. 로컬 OpenAI 호환 서버만 키 없이 사용할 수 있습니다",
+  modelApiKeyDesc: "제공자마다 따로, 플러그인 데이터 파일이 아니라 이 기기의 시크릿 키 저장소에 보관합니다. 로컬 OpenAI 호환 서버만 키 없이 사용할 수 있습니다",
   openaiBaseUrlLabel: "OpenAI 호환 기본 URL",
   openaiBaseUrlDesc: "/v1까지 입력하세요. 예: https://api.openai.com/v1, http://localhost:11434/v1 (Ollama). URL을 바꾸면 이 제공자의 키가 새 주소로 전송됩니다",
   maxInputCharsLabel: "최대 입력 글자 수",
