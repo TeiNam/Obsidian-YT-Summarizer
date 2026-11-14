@@ -1,7 +1,7 @@
 # YouTube LLM Summarizer
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)
-![Obsidian](https://img.shields.io/badge/Obsidian-1.13.2%2B-7C3AED.svg)
+![Obsidian](https://img.shields.io/badge/Obsidian-1.13.0%2B-7C3AED.svg)
 ![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-FF9900.svg)
 ![Vitest](https://img.shields.io/badge/Vitest-5.1-6E9F18.svg)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI/CD-2088FF.svg)
@@ -51,7 +51,7 @@ npm run build
 
 `main.js`, `manifest.json`, `styles.css`를 볼트의 `.obsidian/plugins/youtube-llm-summarizer/`에 복사한 다음 플러그인을 활성화합니다. 이전 ID(`obsidian-youtube-summarizer`) 폴더로 설치했다면 그 폴더의 `data.json`을 새 폴더로 옮겨야 설정이 유지됩니다. AWS SDK와 요약 프롬프트는 `main.js`에 포함됩니다.
 
-Obsidian 1.13.2 이상이 필요합니다. API 키 방식은 데스크톱·모바일에서 사용할 수 있습니다. **AWS 프로필·SSO는 Node.js 20 이상을 포함한 옵시디언 데스크톱 런타임이 필요합니다.** 런타임이 오래되었다면 옵시디언 설치 프로그램을 업데이트하세요.
+Obsidian 1.13.0 이상이 필요합니다. API 키 방식은 데스크톱·모바일에서 사용할 수 있습니다. **AWS 프로필·SSO는 Node.js 20 이상을 포함한 옵시디언 데스크톱 런타임이 필요합니다.** 런타임이 오래되었다면 옵시디언 설치 프로그램을 업데이트하세요.
 
 ## 사용법
 
@@ -95,7 +95,7 @@ Obsidian 1.13.2 이상이 필요합니다. API 키 방식은 데스크톱·모�
 
 ### Bedrock Bearer 토큰
 
-Bedrock 콘솔에서 발급한 API 키를 시크릿 키로 만들고 **Bedrock Bearer 토큰**에서 그 시크릿 키를 선택합니다. `Bearer` 접두사는 생략할 수 있습니다. IAM 액세스 키 ID나 SSO 로그인 토큰을 넣는 곳은 아닙니다.
+Bedrock 콘솔에서 발급한 API 키를 **Bedrock Bearer 토큰**에 입력합니다. `Bearer` 접두사는 생략할 수 있습니다. IAM 액세스 키 ID나 SSO 로그인 토큰을 넣는 필드는 아닙니다.
 
 ### AWS 프로필 (IAM Roles Anywhere·SSO)
 
@@ -128,7 +128,7 @@ HTTP는 `localhost`, `127.0.0.1`, `[::1]`만 허용합니다. 나머지 주소�
 
 ### 키 저장
 
-API 키는 플러그인의 `data.json`이 아니라 Obsidian의 시크릿 키 저장소에 보관합니다. 설정의 키 항목에서 시크릿 키를 고르거나 새로 만들며, `data.json`에는 그 시크릿 키의 이름만 저장됩니다. 시크릿 키 저장소는 기기마다 따로이므로 다른 기기에서는 시크릿 키를 다시 선택해야 합니다. AWS 프로필만 사용하면 플러그인 설정에는 프로필 이름만 저장하고 AWS 자격 증명은 기존 AWS 캐시에서 읽습니다.
+API 키는 플러그인의 `data.json`이 아니라 Obsidian의 시크릿 키 저장소에 보관합니다. 설정의 키 입력란에 키를 붙여넣으면 플러그인이 정해진 이름(예: `youtube-llm-summarizer-openai-key`)으로 저장소에 쓰고, `data.json`에는 그 이름만 저장합니다. 눈 아이콘의 마스킹은 화면 표시만 숨깁니다. 시크릿 키 저장소는 기기마다 따로이므로 다른 기기에서는 키를 다시 입력해야 합니다. AWS 프로필만 사용하면 플러그인 설정에는 프로필 이름만 저장하고 AWS 자격 증명은 기존 AWS 캐시에서 읽습니다.
 
 이전 빌드가 `data.json`에 평문으로 저장한 키는 플러그인을 처음 로드할 때 시크릿 키 저장소로 옮기고 파일에서 지웁니다.
 

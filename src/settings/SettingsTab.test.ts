@@ -140,7 +140,7 @@ vi.mock("obsidian", async (importOriginal) => {
 
 /**
  * Obsidian이 getSettingDefinitions()로 화면을 그리는 과정을 흉내 낸다.
- * render 항목은 (목) Setting 행에 그리고, control 항목(비밀 선택)은 값 저장 콜백으로 등록한다.
+ * 모든 항목이 render 방식이므로 (목) Setting 행에 그린다.
  */
 function renderDefinitions(tab: SettingsTab): void {
   tab.containerEl.empty();
@@ -151,12 +151,7 @@ function renderDefinitions(tab: SettingsTab): void {
       return;
     }
     const setting = new Setting(tab.containerEl).setName(item.name).setDesc(item.desc ?? "");
-    if ("control" in item && item.control) {
-      const { key } = item.control;
-      textByName.set(item.name, async (value) => { await tab.setControlValue(key, value); });
-    } else if ("render" in item && item.render) {
-      item.render(setting, undefined as never);
-    }
+    if ("render" in item && item.render) item.render(setting, undefined as never);
   };
   tab.getSettingDefinitions().forEach(renderItem);
 }
@@ -249,11 +244,29 @@ describe("SettingsTab", () => {
     });
 
     it("API Key 변경 시 설정이 저장된다", async () => {
-      // API 키 행은 비밀 선택 컨트롤이다. 설정에는 키 값이 아니라 비밀의 이름만 저장한다.
-      await textByName.get(tr.bedrockTokenLabel)!("my-bedrock-secret");
-      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("my-bedrock-secret");
+      // 입력한 키는 시크릿 키 저장소에 쓰고, 설정에는 키 값이 아니라 그 이름만 저장한다.
+      await textByName.get(tr.bedrockTokenLabel)!("test-api-key-123");
+      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("youtube-llm-summarizer-bedrock-token");
+      expect(app.secretStorage.getSecret("youtube-llm-summarizer-bedrock-token")).toBe("test-api-key-123");
       expect(mockPlugin.settings.bedrockBearerToken).toBe("");
+      expect(JSON.stringify(mockPlugin.settings)).not.toContain("test-api-key-123");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
+
+      // 값을 지우면 연결만 끊는다.
+      await textByName.get(tr.bedrockTokenLabel)!("");
+      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("");
+    });
+
+    it("YouTube Data API 키를 입력하면 구독 설정이 나타나고, 지우면 사라진다", async () => {
+      expect(textByName.has(tr.addChannelLabel)).toBe(false);
+      await textByName.get(tr.youtubeDataApiKeyLabel)!("data-api-key");
+      expect(app.secretStorage.getSecret(mockPlugin.settings.youtubeDataApiKeySecret)).toBe("data-api-key");
+      expect(textByName.has(tr.addChannelLabel)).toBe(true);
+
+      textByName.delete(tr.addChannelLabel);
+      await textByName.get(tr.youtubeDataApiKeyLabel)!("");
+      expect(mockPlugin.settings.youtubeDataApiKeySecret).toBe("");
+      expect(textByName.has(tr.addChannelLabel)).toBe(false);
     });
 
     it("저장 폴더 경로 변경 시 설정이 저장된다", async () => {
@@ -274,11 +287,11 @@ describe("SettingsTab", () => {
       await textByName.get(tr.modelApiKeyLabel)!("gemini-key");
       await textByName.get(tr.modelLabel)!("gemini-model");
       await dropdownByName.get(tr.providerLabel)!("openai");
-      expect(mockPlugin.settings.openaiApiKeySecret).toBe("openai-key");
+      expect(app.secretStorage.getSecret(mockPlugin.settings.openaiApiKeySecret)).toBe("openai-key");
       expect(mockPlugin.settings.openaiModel).toBe("openai-model");
-      expect(mockPlugin.settings.geminiApiKeySecret).toBe("gemini-key");
+      expect(app.secretStorage.getSecret(mockPlugin.settings.geminiApiKeySecret)).toBe("gemini-key");
       expect(mockPlugin.settings.geminiModel).toBe("gemini-model");
-      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("bedrock-token");
+      expect(app.secretStorage.getSecret(mockPlugin.settings.bedrockBearerTokenSecret)).toBe("bedrock-token");
     });
 
     it("프로필과 토큰 입력란을 함께 표시하고 각각 저장한다", async () => {
@@ -286,7 +299,7 @@ describe("SettingsTab", () => {
       await textByName.get(tr.bedrockTokenLabel)!("token");
       await textByName.get(tr.bedrockProfileLabel)!("my-sso");
       expect(mockPlugin.settings.bedrockProfile).toBe("my-sso");
-      expect(mockPlugin.settings.bedrockBearerTokenSecret).toBe("token");
+      expect(app.secretStorage.getSecret(mockPlugin.settings.bedrockBearerTokenSecret)).toBe("token");
     });
 
     it("실행 도중 설정 객체가 교체되어도 최신 객체에 UI·요약 언어를 저장한다", async () => {
